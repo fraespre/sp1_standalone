@@ -1,0 +1,146 @@
+
+# variables
+buildir = build
+srcdir  = src
+
+p_compile = -mz80 --asm=z80asm --std-c99 -S --reserve-regs-iy --sdcccall 0
+p_tape    = -a 26298 -r 26298 -c 26297 -b
+
+# RULES -----------------------------------------------------------------------------------------
+
+# C compiler: sdcc (.c -> .asm) + _fix_sdcc_asm.ps1 (patch) + z88dk-z80asm (.asm -> .o)
+# z80asm -o=$out writes directly to the target path, avoiding the double-extension problem
+rule compile_c
+  command = cmd /c "sdcc $p_compile -o $out.asm $in && powershell -NoProfile -File _fix_sdcc_asm.ps1 $out.asm && z80asm -o=$out $out.asm"
+  description = cc: $out
+
+# ASM assembler: z88dk-z80asm (.asm -> .o)
+# setlocal+delayed expansion captures project root (%R%) before pushd changes %CD%;
+# %~dpF = dir of input, %~nxF = bare filename -> no path mirroring in -O=build output.
+rule compile_asm
+  command = cmd /v:on /c "set R=%CD%\build&& for %F in ($in) do (pushd %~dpF && z80asm -I!R!\..\src\sp1 -O=!R! %~nxF && popd)"
+  description = asm: $out
+
+# Linker: z88dk-z80asm binary mode (.o -> .bin)
+# ORG addresses are baked into crt0.asm sections; -m generates map file
+rule link
+  command = z80asm -b -m -o=$out $in
+  description = link: $out
+
+# Bin2Tap: concatenate HEAP+CRT (adjacent: 0x5B00..0x66B9 + 0x66BA..)
+# into sp1.bin, then produce tape file; delete the two intermediate bins.
+# -a 23296 : load address = 0x5B00 (HEAP binary start)
+# -r 26298 : run address  = 0x66BA (CRT entry point)
+# -c 26297 : clear address  = 0x66B9 (CRT entry point -1)
+# -b       : include BASIC loader
+rule tap
+  command = cmd /c "bin2tap $p_tape -o $out $in"
+  description = Tap: $out
+
+
+# COMPILE ---------------------------------------------------------------------------------------
+
+# src  (output: build/xxx.o)
+build $buildir/crt0.o:       compile_asm $srcdir/crt0.asm
+build $buildir/sp1_ex1.o:    compile_c   $srcdir/sp1_ex1.c
+build $buildir/sp1_ex3.o:    compile_c   $srcdir/sp1_ex3.c
+build $buildir/sp1_ex4.o:    compile_c   $srcdir/sp1_ex4.c
+build $buildir/sp1_ex7.o:    compile_c   $srcdir/sp1_ex7.c
+
+# src/sp1  (output: build/xxx.o)
+build $buildir/sp1lib.o:                     compile_c   $srcdir/sp1/sp1lib.c
+build $buildir/sp1_DrawUpdateStruct.o:       compile_asm $srcdir/sp1/sp1_DrawUpdateStruct.asm
+build $buildir/sp1_GetUpdateStruct.o:        compile_asm $srcdir/sp1/sp1_GetUpdateStruct.asm
+build $buildir/sp1_InvUpdateStruct.o:        compile_asm $srcdir/sp1/sp1_InvUpdateStruct.asm
+build $buildir/sp1_UpdateNow.o:              compile_asm $srcdir/sp1/sp1_UpdateNow.asm
+build $buildir/sp1_Invalidate.o:             compile_asm $srcdir/sp1/sp1_Invalidate.asm
+build $buildir/sp1_Initialize.o:             compile_asm $srcdir/sp1/sp1_Initialize.asm
+build $buildir/sp1_TileEntry.o:              compile_asm $srcdir/sp1/sp1_TileEntry.asm
+build $buildir/sp1_PrintAt.o:                compile_asm $srcdir/sp1/sp1_PrintAt.asm
+build $buildir/sp1_ClearRect.o:              compile_asm $srcdir/sp1/sp1_ClearRect.asm
+build $buildir/sp1_ClearRectInv.o:           compile_asm $srcdir/sp1/sp1_ClearRectInv.asm
+build $buildir/sp1__add_spr_char.o:          compile_asm $srcdir/sp1/sp1__add_spr_char.asm
+build $buildir/sp1__remove_spr_char.o:       compile_asm $srcdir/sp1/sp1__remove_spr_char.asm
+build $buildir/sp1__struct_ss_prototype.o:   compile_asm $srcdir/sp1/sp1__struct_ss_prototype.asm
+build $buildir/sp1__struct_cs_prototype.o:   compile_asm $srcdir/sp1/sp1__struct_cs_prototype.asm
+build $buildir/SP1_DRAW_MASK2NR.o:           compile_asm $srcdir/sp1/sp1_DRAW_MASK2NR.asm
+build $buildir/SP1_DRAW_MASK2LB.o:           compile_asm $srcdir/sp1/sp1_DRAW_MASK2LB.asm
+build $buildir/SP1_DRAW_MASK2RB.o:           compile_asm $srcdir/sp1/sp1_DRAW_MASK2RB.asm
+build $buildir/SP1_DRAW_MASK2.o:             compile_asm $srcdir/sp1/sp1_DRAW_MASK2.asm
+build $buildir/sp1_CreateSpr.o:              compile_asm $srcdir/sp1/sp1_CreateSpr.asm
+build $buildir/sp1_AddColSpr.o:              compile_asm $srcdir/sp1/sp1_AddColSpr.asm
+build $buildir/sp1_DeleteSpr.o:              compile_asm $srcdir/sp1/sp1_DeleteSpr.asm
+build $buildir/sp1_MoveSprAbs.o:             compile_asm $srcdir/sp1/sp1_MoveSprAbs.asm
+build $buildir/sp1_MoveSprPix.o:             compile_asm $srcdir/sp1/sp1_MoveSprPix.asm
+build $buildir/sp1_MoveSprRel.o:             compile_asm $srcdir/sp1/sp1_MoveSprRel.asm
+build $buildir/sp1_IterateSprChar.o:         compile_asm $srcdir/sp1/sp1_IterateSprChar.asm
+build $buildir/sp1_IterateUpdateArr.o:       compile_asm $srcdir/sp1/sp1_IterateUpdateArr.asm
+build $buildir/sp1_InitCharStruct.o:         compile_asm $srcdir/sp1/sp1_InitCharStruct.asm
+build $buildir/sp1_InsertCharStruct.o:       compile_asm $srcdir/sp1/sp1_InsertCharStruct.asm
+build $buildir/sp1_RemoveCharStruct.o:       compile_asm $srcdir/sp1/sp1_RemoveCharStruct.asm
+build $buildir/sp1_PutTiles.o:               compile_asm $srcdir/sp1/sp1_PutTiles.asm
+build $buildir/sp1_PutTilesInv.o:            compile_asm $srcdir/sp1/sp1_PutTilesInv.asm
+
+
+# LINK ------------------------------------------------------------------------------------------
+build $buildir/sp1_ex1.bin | $buildir/sp1_ex1__HEAP.bin $buildir/sp1_ex1__CRT.bin:  link $
+  $buildir/crt0.o $buildir/sp1_ex1.o $
+  $buildir/sp1lib.o $
+  $buildir/sp1_DrawUpdateStruct.o $buildir/sp1_GetUpdateStruct.o $buildir/sp1_InvUpdateStruct.o $
+  $buildir/sp1_UpdateNow.o $buildir/sp1_Invalidate.o $buildir/sp1_Initialize.o $
+  $buildir/sp1_TileEntry.o $buildir/sp1_PrintAt.o $buildir/sp1_ClearRect.o $buildir/sp1_ClearRectInv.o $
+  $buildir/sp1__add_spr_char.o $buildir/sp1__remove_spr_char.o $
+  $buildir/sp1__struct_ss_prototype.o $buildir/sp1__struct_cs_prototype.o $
+  $buildir/SP1_DRAW_MASK2NR.o $buildir/SP1_DRAW_MASK2LB.o $buildir/SP1_DRAW_MASK2RB.o $buildir/SP1_DRAW_MASK2.o $
+  $buildir/sp1_CreateSpr.o $buildir/sp1_AddColSpr.o $buildir/sp1_DeleteSpr.o $
+  $buildir/sp1_MoveSprAbs.o $buildir/sp1_MoveSprPix.o $buildir/sp1_MoveSprRel.o $
+  $buildir/sp1_IterateSprChar.o $buildir/sp1_IterateUpdateArr.o $buildir/sp1_InitCharStruct.o $buildir/sp1_InsertCharStruct.o $buildir/sp1_RemoveCharStruct.o $
+  $buildir/sp1_PutTiles.o $buildir/sp1_PutTilesInv.o
+
+build $buildir/sp1_ex3.bin | $buildir/sp1_ex3__HEAP.bin $buildir/sp1_ex3__CRT.bin:  link $
+  $buildir/crt0.o $buildir/sp1_ex3.o $
+  $buildir/sp1lib.o $
+  $buildir/sp1_DrawUpdateStruct.o $buildir/sp1_GetUpdateStruct.o $buildir/sp1_InvUpdateStruct.o $
+  $buildir/sp1_UpdateNow.o $buildir/sp1_Invalidate.o $buildir/sp1_Initialize.o $
+  $buildir/sp1_TileEntry.o $buildir/sp1_PrintAt.o $buildir/sp1_ClearRect.o $buildir/sp1_ClearRectInv.o $
+  $buildir/sp1__add_spr_char.o $buildir/sp1__remove_spr_char.o $
+  $buildir/sp1__struct_ss_prototype.o $buildir/sp1__struct_cs_prototype.o $
+  $buildir/SP1_DRAW_MASK2NR.o $buildir/SP1_DRAW_MASK2LB.o $buildir/SP1_DRAW_MASK2RB.o $buildir/SP1_DRAW_MASK2.o $
+  $buildir/sp1_CreateSpr.o $buildir/sp1_AddColSpr.o $buildir/sp1_DeleteSpr.o $
+  $buildir/sp1_MoveSprAbs.o $buildir/sp1_MoveSprPix.o $buildir/sp1_MoveSprRel.o $
+  $buildir/sp1_IterateSprChar.o $buildir/sp1_IterateUpdateArr.o $buildir/sp1_InitCharStruct.o $buildir/sp1_InsertCharStruct.o $buildir/sp1_RemoveCharStruct.o $
+  $buildir/sp1_PutTiles.o $buildir/sp1_PutTilesInv.o
+
+build $buildir/sp1_ex4.bin | $buildir/sp1_ex4__HEAP.bin $buildir/sp1_ex4__CRT.bin:  link $
+  $buildir/crt0.o $buildir/sp1_ex4.o $
+  $buildir/sp1lib.o $
+  $buildir/sp1_DrawUpdateStruct.o $buildir/sp1_GetUpdateStruct.o $buildir/sp1_InvUpdateStruct.o $
+  $buildir/sp1_UpdateNow.o $buildir/sp1_Invalidate.o $buildir/sp1_Initialize.o $
+  $buildir/sp1_TileEntry.o $buildir/sp1_PrintAt.o $buildir/sp1_ClearRect.o $buildir/sp1_ClearRectInv.o $
+  $buildir/sp1__add_spr_char.o $buildir/sp1__remove_spr_char.o $
+  $buildir/sp1__struct_ss_prototype.o $buildir/sp1__struct_cs_prototype.o $
+  $buildir/SP1_DRAW_MASK2NR.o $buildir/SP1_DRAW_MASK2LB.o $buildir/SP1_DRAW_MASK2RB.o $buildir/SP1_DRAW_MASK2.o $
+  $buildir/sp1_CreateSpr.o $buildir/sp1_AddColSpr.o $buildir/sp1_DeleteSpr.o $
+  $buildir/sp1_MoveSprAbs.o $buildir/sp1_MoveSprPix.o $buildir/sp1_MoveSprRel.o $
+  $buildir/sp1_IterateSprChar.o $buildir/sp1_IterateUpdateArr.o $buildir/sp1_InitCharStruct.o $buildir/sp1_InsertCharStruct.o $buildir/sp1_RemoveCharStruct.o $
+  $buildir/sp1_PutTiles.o $buildir/sp1_PutTilesInv.o
+
+build $buildir/sp1_ex7.bin | $buildir/sp1_ex7__HEAP.bin $buildir/sp1_ex7__CRT.bin:  link $
+  $buildir/crt0.o $buildir/sp1_ex7.o $
+  $buildir/sp1lib.o $
+  $buildir/sp1_DrawUpdateStruct.o $buildir/sp1_GetUpdateStruct.o $buildir/sp1_InvUpdateStruct.o $
+  $buildir/sp1_UpdateNow.o $buildir/sp1_Invalidate.o $buildir/sp1_Initialize.o $
+  $buildir/sp1_TileEntry.o $buildir/sp1_PrintAt.o $buildir/sp1_ClearRect.o $buildir/sp1_ClearRectInv.o $
+  $buildir/sp1__add_spr_char.o $buildir/sp1__remove_spr_char.o $
+  $buildir/sp1__struct_ss_prototype.o $buildir/sp1__struct_cs_prototype.o $
+  $buildir/SP1_DRAW_MASK2NR.o $buildir/SP1_DRAW_MASK2LB.o $buildir/SP1_DRAW_MASK2RB.o $buildir/SP1_DRAW_MASK2.o $
+  $buildir/sp1_CreateSpr.o $buildir/sp1_AddColSpr.o $buildir/sp1_DeleteSpr.o $
+  $buildir/sp1_MoveSprAbs.o $buildir/sp1_MoveSprPix.o $buildir/sp1_MoveSprRel.o $
+  $buildir/sp1_IterateSprChar.o $buildir/sp1_IterateUpdateArr.o $buildir/sp1_InitCharStruct.o $buildir/sp1_InsertCharStruct.o $buildir/sp1_RemoveCharStruct.o $
+  $buildir/sp1_PutTiles.o $buildir/sp1_PutTilesInv.o
+  
+# TAP ------------------------------------------------------------------------------------------
+build $buildir/sp1_ex1.tap: tap $buildir/sp1_ex1__CRT.bin
+build $buildir/sp1_ex3.tap: tap $buildir/sp1_ex3__CRT.bin
+build $buildir/sp1_ex4.tap: tap $buildir/sp1_ex4__CRT.bin
+build $buildir/sp1_ex7.tap: tap $buildir/sp1_ex7__CRT.bin
