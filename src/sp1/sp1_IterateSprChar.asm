@@ -30,31 +30,17 @@ asm_sp1_IterateSprChar:
 
    push ix
 
-IFDEF __SDCC
-
-   push hl
-   push bc
-
-ELSE
-
-   push bc
-   push hl
-
-ENDIF
+   push hl                ; save &cs for loop restore
+   push bc                ; save count for loop restore
+   ld   d, h
+   ld   e, l              ; DE = &cs   (sdcccall(1): 2nd ptr arg -> DE)
+   ld   l, c
+   ld   h, b              ; HL = count (sdcccall(1): 1st u16 arg -> HL)
 
    call l_jpix            ; call userfunc(uint count, struct sp1_cs *c)
 
-IFDEF __SDCC
-
-   pop bc
-   pop hl
-
-ELSE
-
-   pop hl
-   pop bc
-
-ENDIF
+   pop bc                 ; restore count
+   pop hl                 ; restore &cs
 
    pop ix
 

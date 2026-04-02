@@ -3,7 +3,7 @@
 // EXAMPLE PROGRAM #7
 /////////////////////////////////////////////////////////////
 
-#include "./sp1/sp1lib.h"
+#include "./sp1_embedded/sp1lib.h"
 
 
 static void _asmcode(void) {

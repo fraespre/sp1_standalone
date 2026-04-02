@@ -17,7 +17,7 @@ SECTION _HEAP
 SECTION _CRT
 	ORG     0x66BA                  ; absolute: entry point
 
-		ld      sp, 0xD1ED          ; REGISTER_SP = 53741 (matches Rovin)
+		ld      sp, 0xD1ED          ; REGISTER_SP = 53741 (behind SP1 struts UPDATELISTH= 0xd1ed)
 
 		ld      hl, 0x5B02          ; init heap pointer: skip the 2-byte _heap_ptr variable itself
 		ld      (_heap_ptr), hl
@@ -26,6 +26,7 @@ SECTION _CRT
 		call    _main
 		; _main never returns
 
+SECTION _SUPPORT
 ; ---------------------------------------------------------------------------
 ; Bump allocator
 ; HL = requested size -> HL = allocated block ptr, CF = 0 on success
@@ -55,23 +56,18 @@ SECTION _CRT
 
 ; ---------------------------------------------------------------------------
 ; SDCC Z80 runtime stub: __moduchar
-; --sdcccall 0: called as "push rr; inc sp; push af; inc sp; call __moduchar"
-;   SP+2 = dividend (A value), SP+3 = divisor (H or D value)
-;   A register still holds the dividend at entry
-;   result returned in L (caller does "ld a, l" after pop-cleanup)
+; --sdcccall 1: A = dividend (1st u8 arg), L = divisor (2nd u8 arg) -> A = remainder
 ; ---------------------------------------------------------------------------
 	PUBLIC  __moduchar
 	__moduchar:
-		ld      hl, 3
-		add     hl, sp              ; HL = SP+3 = address of divisor on stack
-		ld      d, (hl)             ; D = divisor
+		ld      d, l                ; D = divisor (from L, 2nd u8 arg)
 	moduchar_loop:
-		ld      e, a                ; E = current remainder candidate
+		ld      e, a                ; E = remainder candidate
 		sub     d                   ; A = A - divisor
 		jr      c, moduchar_done    ; borrow: E holds the remainder
 		jr      moduchar_loop
 	moduchar_done:
-		ld      l, e                ; return remainder in L
+		ld      a, e                ; A = remainder (return value for sdcccall(1))
 		ret
 
 ; ---------------------------------------------------------------------------
