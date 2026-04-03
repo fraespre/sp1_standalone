@@ -17,7 +17,8 @@ SECTION _HEAP
 SECTION _CRT
 	ORG     0x66BA                  ; absolute: entry point
 
-		ld      sp, 0xD1ED          ; REGISTER_SP = 53741 (behind SP1 struts UPDATELISTH= 0xd1ed)
+		;ld      sp, 0xD1ED          ; REGISTER_SP = 53741 (behind SP1 struts UPDATELISTH= 0xd1ed)
+		ld      sp, 0xD9ED          ; REGISTER_SP = 55798 (size improvement using sp1 Even-Rotation
 
 		ld      hl, 0x5B02          ; init heap pointer: skip the 2-byte _heap_ptr variable itself
 		ld      (_heap_ptr), hl

@@ -11,7 +11,7 @@ p_tape    = -a 26298 -r 26298 -c 26297 -b
 # C compiler: sdcc (.c -> .asm) + _fix_sdcc_asm.ps1 (patch) + z88dk-z80asm (.asm -> .o)
 # z80asm -o=$out writes directly to the target path, avoiding the double-extension problem
 rule compile_c
-  command = cmd /c "sdcc $p_compile -o $out.asm $in && powershell -NoProfile -File _fix_sdcc_asm.ps1 $out.asm && z80asm -o=$out $out.asm"
+  command = cmd /v:on /c "set O=$out && set A=!O:.o=.asm! && sdcc $p_compile -o !A! $in && powershell -NoProfile -File _fix_sdcc_asm.ps1 !A! && z80asm -o=$out !A!"
   description = cc: $out
 
 # ASM assembler: z88dk-z80asm (.asm -> .o)
@@ -48,7 +48,7 @@ build $buildir/sp1_ex4.o:    compile_c   $srcdir/sp1_ex4.c
 build $buildir/sp1_ex7.o:    compile_c   $srcdir/sp1_ex7.c
 
 # src/sp1  (output: build/xxx.o)
-build $buildir/sp1lib.o:                      compile_c   $srcdir/sp1_embedded/sp1lib.c
+build $buildir/sp1lib.o:                      compile_c   $srcdir/sp1_evenrot/sp1lib.c
 #build $buildir/sp1lib.o:                     compile_c   $srcdir/sp1/sp1lib.c
 #build $buildir/sp1_DrawUpdateStruct.o:       compile_asm $srcdir/sp1/sp1_DrawUpdateStruct.asm
 #build $buildir/sp1_GetUpdateStruct.o:        compile_asm $srcdir/sp1/sp1_GetUpdateStruct.asm

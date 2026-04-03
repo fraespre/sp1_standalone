@@ -581,13 +581,13 @@ static void __sp1_asm_engine(void) __naked {
     defc SP1V_DISPORIGY   = 0
     defc SP1V_DISPWIDTH   = 32
     defc SP1V_DISPHEIGHT  = 24
-    defc SP1V_PIXELBUFFER = 0xD1F7
-    defc SP1V_ATTRBUFFER  = 0xD1FF
-    defc SP1V_TILEARRAY   = 0xF000
-    defc SP1V_UPDATEARRAY = 0xD200
-    defc SP1V_ROTTBL      = 0xF000
-    defc SP1V_UPDATELISTH = 0xD1ED
-    defc SP1V_UPDATELISTT = 0xD1EF
+    defc SP1V_PIXELBUFFER = 0xD9F7
+    defc SP1V_ATTRBUFFER  = 0xD9FF
+    defc SP1V_TILEARRAY   = 0xF800
+    defc SP1V_UPDATEARRAY = 0xDA00
+    defc SP1V_ROTTBL      = 0xF800
+    defc SP1V_UPDATELISTH = 0xD9ED
+    defc SP1V_UPDATELISTT = 0xD9EF
 
     EXTERN asm_malloc
     EXTERN asm_free
@@ -1944,7 +1944,7 @@ static void __sp1_asm_engine(void) __naked {
 
     .InitCharStruct_sp1_ss_embedded:
 
-       ld a,SP1V_ROTTBL/256 + 8
+       ld a,SP1V_ROTTBL/256 + 4
        ld bc,0
        ex de,hl
        jp (hl)
@@ -2409,8 +2409,7 @@ static void __sp1_asm_engine(void) __naked {
        cp (ix+17)
        rl b
 
-       add a,a
-       add a,SP1V_ROTTBL/256
+       or  SP1V_ROTTBL/256
        ld (ix+9),a
 
        xor a
@@ -3545,13 +3544,12 @@ static void __sp1_asm_engine(void) __naked {
        bit 0,a
        jr z, norottbl
 
-       ld c,7
+       ld c,6
        push af
 
     .rottbllp
 
        ld a,c
-       add a,a
        or SP1V_ROTTBL/256
        ld h,a
        ld l,0
@@ -3575,6 +3573,7 @@ static void __sp1_asm_engine(void) __naked {
        inc l
        jp nz, entrylp
 
+       dec c
        dec c
        jp nz, rottbllp
        pop af

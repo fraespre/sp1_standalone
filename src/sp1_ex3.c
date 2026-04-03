@@ -5,7 +5,8 @@ http://www.worldofspectrum.org/forums/discussion/37467/a-z88dk-sp1-demo-with-sou
 http://www.worldofspectrum.org/forums/discussion/comment/864043/#Comment_864043
 ****************************************/
 
-#include "./sp1_embedded/sp1lib.h"
+//#include "./sp1_embedded/sp1lib.h"
+#include "./sp1_evenrot/sp1lib.h"
 
 
 static void _asmcode(void) {
