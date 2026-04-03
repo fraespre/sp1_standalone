@@ -1,5 +1,5 @@
 
-# variables
+# VARIABLES --------------------------------------------------------------------------------------
 buildir = build
 srcdir  = src
 
@@ -15,10 +15,8 @@ rule compile_c
   description = cc: $out
 
 # ASM assembler: z88dk-z80asm (.asm -> .o)
-# setlocal+delayed expansion captures project root (%R%) before pushd changes %CD%;
-# %~dpF = dir of input, %~nxF = bare filename -> no path mirroring in -O=build output.
 rule compile_asm
-  command = cmd /v:on /c "set R=%CD%\build&& for %F in ($in) do (pushd %~dpF && z80asm -I!R!\..\src\sp1 -O=!R! %~nxF && popd)"
+  command = z80asm -o=$out $in
   description = asm: $out
 
 # Linker: z88dk-z80asm binary mode (.o -> .bin)
@@ -35,7 +33,7 @@ rule link
 # -b       : include BASIC loader
 rule tap
   command = cmd /c "bin2tap $p_tape -o $out $in"
-  description = Tap: $out
+  description = tap: $out
 
 
 # COMPILE ---------------------------------------------------------------------------------------
@@ -47,8 +45,8 @@ build $buildir/sp1_ex3.o:    compile_c   $srcdir/sp1_ex3.c
 build $buildir/sp1_ex4.o:    compile_c   $srcdir/sp1_ex4.c
 build $buildir/sp1_ex7.o:    compile_c   $srcdir/sp1_ex7.c
 
-# src/sp1  (output: build/xxx.o)
-build $buildir/sp1lib.o:                      compile_c   $srcdir/sp1_evenrot/sp1lib.c
+# src/sp1_evenrot  (output: build/xxx.o)
+build $buildir/sp1lib.o:     compile_c   $srcdir/sp1_evenrot/sp1lib.c
 #build $buildir/sp1lib.o:                     compile_c   $srcdir/sp1/sp1lib.c
 #build $buildir/sp1_DrawUpdateStruct.o:       compile_asm $srcdir/sp1/sp1_DrawUpdateStruct.asm
 #build $buildir/sp1_GetUpdateStruct.o:        compile_asm $srcdir/sp1/sp1_GetUpdateStruct.asm

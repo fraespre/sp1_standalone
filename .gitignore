@@ -5,6 +5,7 @@ toolStack/*/
 build/*.o
 build/*.asm
 build/*.bin
+build/*.map
 
 # Logs
 *log
