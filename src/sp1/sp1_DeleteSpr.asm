@@ -2,7 +2,7 @@ INCLUDE "sp1___config.asm"
 
 PUBLIC asm_sp1_DeleteSpr
 
-EXTERN ___free
+EXTERN __free
 
 asm_sp1_DeleteSpr:
 
@@ -18,7 +18,7 @@ asm_sp1_DeleteSpr:
    push bc
    ex de,hl
    push hl
-   call ___free
+   call __free
 
    pop hl
    pop de

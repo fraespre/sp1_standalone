@@ -4,10 +4,10 @@
 SECTION _HEAP
 	ORG     0x5B00                  ; absolute: HEAP-start 0x5B00, ends 0x66B9; _CRT at 0x66BA
 
-	defc    _heap_data = 0x5B02     ; heap allocation base: past the 2-byte _heap_ptr variable
+	defc    _heap_data = 0x5B02     ; heap allocation base: past the 2-byte __heap_ptr variable
 
-	PUBLIC  _heap_ptr
-	_heap_ptr:
+	PUBLIC  __heap_ptr
+	__heap_ptr:
 		DEFW    _heap_data          ; initial heap pointer = 0x5B02 (skip the ptr variable itself)
 		DEFS    3000                ; heap size 3000b (total 3002b); ends 0x66B9; _CRT at 0x66BA
 
@@ -20,8 +20,8 @@ SECTION _CRT
 		;ld      sp, 0xD1ED          ; REGISTER_SP = 53741 (behind SP1 struts UPDATELISTH= 0xd1ed)
 		ld      sp, 0xD9ED          ; REGISTER_SP = 55798 (size improvement using sp1 Even-Rotation
 
-		ld      hl, 0x5B02          ; init heap pointer: skip the 2-byte _heap_ptr variable itself
-		ld      (_heap_ptr), hl
+		ld      hl, 0x5B02          ; init heap pointer: skip the 2-byte __heap_ptr variable itself
+		ld      (__heap_ptr), hl
 
 		EXTERN  _main
 		call    _main
@@ -32,13 +32,13 @@ SECTION _SUPPORT
 ; Bump allocator
 ; HL = requested size -> HL = allocated block ptr, CF = 0 on success
 ; ---------------------------------------------------------------------------
-	PUBLIC  ___malloc
-	___malloc:
+	PUBLIC  __malloc
+	__malloc:
 		push    de
 		ld      d, h                ; DE = size
 		ld      e, l
 		push    ix
-		ld      ix, _heap_ptr       ; IX = address of _heap_ptr variable
+		ld      ix, __heap_ptr       ; IX = address of __heap_ptr variable
 		ld      l, (ix+0)           ; HL = current heap ptr
 		ld      h, (ix+1)
 		push    hl                  ; save old heap ptr for return
@@ -51,8 +51,8 @@ SECTION _SUPPORT
 		or      a                   ; clear CF = success
 		ret
 	
-	PUBLIC  ___free
-	___free:
+	PUBLIC  __free
+	__free:
 		ret                         ; no-op in bump allocator
 
 ; ---------------------------------------------------------------------------

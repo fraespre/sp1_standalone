@@ -567,7 +567,7 @@ void sp1_PutTilesInv(struct sp1_Rect *r, struct sp1_tp *src) __naked __sdcccall(
 // SP1 ENGINE — ALL MODULES EMBEDDED
 // All 31 ASM modules merged into one inline block.
 // EXTERN declarations for SP1-internal symbols removed (resolved locally).
-// Only ___malloc / ___free remain EXTERN (defined in crt0.asm).
+// Only __malloc / __free remain EXTERN (defined in crt0.asm).
 // =============================================================================
 static void __sp1_asm_engine(void) __naked {
   __asm
@@ -598,8 +598,8 @@ static void __sp1_asm_engine(void) __naked {
                                     ;  pointer ($f200-$ffff in this default case). Set to $0000 if the table is not needed (if, for example, all sprites are
                                     ;  drawn at exact horizontal character coordinates or you use pre-shifted sprites only)
     
-	EXTERN ___malloc
-    EXTERN ___free
+	EXTERN __malloc
+    EXTERN __free
 
     ; =========================================================================
     ; MODULE: sp1__struct_ss_prototype
@@ -2046,7 +2046,7 @@ static void __sp1_asm_engine(void) __naked {
        push bc
        ld hl,24
        push hl
-       call ___malloc
+       call __malloc
        pop bc
        jp c, CreateSpr_fail
 
@@ -2056,7 +2056,7 @@ static void __sp1_asm_engine(void) __naked {
 
        ld hl,20
        push hl
-       call ___malloc
+       call __malloc
        pop bc
        jp c, CreateSpr_fail
 
@@ -2194,7 +2194,7 @@ static void __sp1_asm_engine(void) __naked {
        jr z, CreateSpr_all_return
 
        push hl
-       call ___free
+       call __free
 
        pop hl
        jp CreateSpr_faillp
@@ -2221,7 +2221,7 @@ static void __sp1_asm_engine(void) __naked {
        push bc
        ld hl,24
        push hl
-       call ___malloc
+       call __malloc
        pop bc
        jp c, AddColSpr_fail
 
@@ -2368,7 +2368,7 @@ static void __sp1_asm_engine(void) __naked {
        ret z
 
        push hl
-       call ___free
+       call __free
 
        pop hl
        jr AddColSpr_faillp
@@ -2392,7 +2392,7 @@ static void __sp1_asm_engine(void) __naked {
        push bc
        ex de,hl
        push hl
-       call ___free
+       call __free
 
        pop hl
        pop de
