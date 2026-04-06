@@ -3,7 +3,7 @@
 buildir = build
 srcdir  = src
 
-p_compile = -mz80 --asm=z80asm --std-c99 -S --reserve-regs-iy --sdcccall 1
+p_compile = -mz80 --asm=z80asm --std-c23 -S --reserve-regs-iy --sdcccall 1
 p_tape    = -a 26298 -r 26298 -c 26297 -b
 
 # RULES -----------------------------------------------------------------------------------------

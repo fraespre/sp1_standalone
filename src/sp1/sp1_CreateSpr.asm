@@ -3,7 +3,7 @@ INCLUDE "sp1___config.asm"
 PUBLIC asm_sp1_CreateSpr
 
 EXTERN _sp1_struct_ss_prototype, _sp1_struct_cs_prototype
-EXTERN asm_malloc, asm_free
+EXTERN ___malloc, ___free
 
 asm_sp1_CreateSpr:
 
@@ -24,7 +24,7 @@ asm_sp1_CreateSpr:
    push bc
    ld hl,24
    push hl
-   call asm_malloc
+   call ___malloc
    pop bc
    jp c, CreateSpr_fail
 
@@ -34,7 +34,7 @@ asm_sp1_CreateSpr:
 
    ld hl,20
    push hl
-   call asm_malloc
+   call ___malloc
    pop bc
    jp c, CreateSpr_fail
 
@@ -173,7 +173,7 @@ asm_sp1_CreateSpr:
    jr z, CreateSpr_all_return
 
    push hl
-   call asm_free
+   call ___free
 
    pop hl
    jp CreateSpr_faillp

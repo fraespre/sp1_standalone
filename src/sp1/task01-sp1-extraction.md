@@ -17,7 +17,7 @@
 - asm_sp1_TileEntry   → tiles/asm_sp1_TileEntry.asm
 
 ## SP1 Routines Called via C in RenderUtil.c (need ASM conversion)
-- sp1_CreateSpr    → asm_sp1_CreateSpr   (uses asm_malloc/asm_free from heap.asm)
+- sp1_CreateSpr    → asm_sp1_CreateSpr   (uses ___malloc/___free from heap.asm)
 - sp1_AddColSpr    → asm_sp1_AddColSpr
 - sp1_InitCharStruct   → asm_sp1_InitCharStruct  (sprites/ not tiles/)
 - sp1_GetUpdateStruct  → asm_sp1_GetUpdateStruct
@@ -39,7 +39,7 @@ Each is a 10-byte data blob that gets copied into sprite structs.
 
 ## Key Dependencies
 - asm_sp1_ClearRect + ClearRectInv need l_jpix (likely in SP1DrawUpdateStruct.asm)
-- asm_sp1_CreateSpr/AddColSpr need asm_malloc, asm_free (z88dk heap - kept as-is)
+- asm_sp1_CreateSpr/AddColSpr need ___malloc, ___free (z88dk heap - kept as-is)
 - SP1CRSELECT is PUBLIC in asm_sp1_ClearRect.asm
 - _sp1_struct_ss_prototype, _sp1_struct_cs_prototype needed by CreateSpr/AddColSpr
 

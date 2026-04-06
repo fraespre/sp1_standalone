@@ -567,7 +567,7 @@ void sp1_PutTilesInv(struct sp1_Rect *r, struct sp1_tp *src) __naked __sdcccall(
 // SP1 ENGINE — ALL MODULES EMBEDDED
 // All 31 ASM modules merged into one inline block.
 // EXTERN declarations for SP1-internal symbols removed (resolved locally).
-// Only asm_malloc / asm_free remain EXTERN (defined in crt0.asm).
+// Only ___malloc / ___free remain EXTERN (defined in crt0.asm).
 // =============================================================================
 static void __sp1_asm_engine(void) __naked {
   __asm
@@ -577,20 +577,29 @@ static void __sp1_asm_engine(void) __naked {
     ; =========================================================================
     SECTION _CODE_SP1
 
-    defc SP1V_DISPORIGX   = 0
-    defc SP1V_DISPORIGY   = 0
-    defc SP1V_DISPWIDTH   = 32
-    defc SP1V_DISPHEIGHT  = 24
-    defc SP1V_PIXELBUFFER = 0xD9F7
-    defc SP1V_ATTRBUFFER  = 0xD9FF
-    defc SP1V_TILEARRAY   = 0xF800
-    defc SP1V_UPDATEARRAY = 0xDA00
-    defc SP1V_ROTTBL      = 0xF800
-    defc SP1V_UPDATELISTH = 0xD9ED
-    defc SP1V_UPDATELISTT = 0xD9EF
-
-    EXTERN asm_malloc
-    EXTERN asm_free
+	; display characteristics
+    defc SP1V_DISPORIGX   = 0		; x coordinate of top left corner of area managed by sp1 in characters
+    defc SP1V_DISPORIGY   = 0		; y coordinate of top left corner of area managed by sp1 in characters
+    defc SP1V_DISPWIDTH   = 32		; width of area managed by sp1 in characters (16, 24, 32 ok as of now)
+    defc SP1V_DISPHEIGHT  = 24		; height of area managed by sp1 in characters
+	
+	; sp1 variables
+    defc SP1V_UPDATELISTH = 0xD9ED	; address of 10-byte area holding a dummy struct_sp1_update that is always the "first" in list of screen tiles to be drawn
+    defc SP1V_UPDATELISTT = 0xD9EF	; address of 2-byte variable holding the address of the last struct_sp1_update in list of screen tiles to be drawn
+									; note: SP1V_UPDATELISTT is located inside the dummy struct_sp1_update pointed at by SP1V_UPDATELISTH
+	; buffers
+    defc SP1V_PIXELBUFFER = 0xD9F7	; address of an 8-byte buffer to hold intermediate pixel-draw results
+    defc SP1V_ATTRBUFFER  = 0xD9FF	; address of a single byte buffer to hold intermediate colour-draw results
+    
+	; data structure locations
+	defc SP1V_UPDATEARRAY = 0xDA00	; address of the 10*SP1V_DISPWIDTH*SP1V_DISPHEIGHT byte update array
+    defc SP1V_TILEARRAY   = 0xF800	; address of the 512-byte tile array associating character codes with tile graphics, must lie on 256-byte boundary (LSB=0)
+    defc SP1V_ROTTBL      = 0xF800	; location of the 3584-byte rotation table.  Must lie on 256-byte boundary (LSB=0).  Table begins $0200 bytes ahead of this
+                                    ;  pointer ($f200-$ffff in this default case). Set to $0000 if the table is not needed (if, for example, all sprites are
+                                    ;  drawn at exact horizontal character coordinates or you use pre-shifted sprites only)
+    
+	EXTERN ___malloc
+    EXTERN ___free
 
     ; =========================================================================
     ; MODULE: sp1__struct_ss_prototype
@@ -2037,7 +2046,7 @@ static void __sp1_asm_engine(void) __naked {
        push bc
        ld hl,24
        push hl
-       call asm_malloc
+       call ___malloc
        pop bc
        jp c, CreateSpr_fail
 
@@ -2047,7 +2056,7 @@ static void __sp1_asm_engine(void) __naked {
 
        ld hl,20
        push hl
-       call asm_malloc
+       call ___malloc
        pop bc
        jp c, CreateSpr_fail
 
@@ -2185,7 +2194,7 @@ static void __sp1_asm_engine(void) __naked {
        jr z, CreateSpr_all_return
 
        push hl
-       call asm_free
+       call ___free
 
        pop hl
        jp CreateSpr_faillp
@@ -2212,7 +2221,7 @@ static void __sp1_asm_engine(void) __naked {
        push bc
        ld hl,24
        push hl
-       call asm_malloc
+       call ___malloc
        pop bc
        jp c, AddColSpr_fail
 
@@ -2359,7 +2368,7 @@ static void __sp1_asm_engine(void) __naked {
        ret z
 
        push hl
-       call asm_free
+       call ___free
 
        pop hl
        jr AddColSpr_faillp
@@ -2383,7 +2392,7 @@ static void __sp1_asm_engine(void) __naked {
        push bc
        ex de,hl
        push hl
-       call asm_free
+       call ___free
 
        pop hl
        pop de

@@ -3,7 +3,7 @@ INCLUDE "sp1___config.asm"
 PUBLIC asm_sp1_AddColSpr
 
 EXTERN _sp1_struct_cs_prototype
-EXTERN asm_malloc, asm_free
+EXTERN ___malloc, ___free
 
 asm_sp1_AddColSpr:
 
@@ -17,7 +17,7 @@ asm_sp1_AddColSpr:
    push bc
    ld hl,24
    push hl
-   call asm_malloc
+   call ___malloc
    pop bc
    jp c, AddColSpr_fail
 
@@ -164,7 +164,7 @@ asm_sp1_AddColSpr:
    ret z
 
    push hl
-   call asm_free
+   call ___free
 
    pop hl
    jr AddColSpr_faillp

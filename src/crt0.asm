@@ -32,8 +32,8 @@ SECTION _SUPPORT
 ; Bump allocator
 ; HL = requested size -> HL = allocated block ptr, CF = 0 on success
 ; ---------------------------------------------------------------------------
-	PUBLIC  asm_malloc
-	asm_malloc:
+	PUBLIC  ___malloc
+	___malloc:
 		push    de
 		ld      d, h                ; DE = size
 		ld      e, l
@@ -51,8 +51,8 @@ SECTION _SUPPORT
 		or      a                   ; clear CF = success
 		ret
 	
-	PUBLIC  asm_free
-	asm_free:
+	PUBLIC  ___free
+	___free:
 		ret                         ; no-op in bump allocator
 
 ; ---------------------------------------------------------------------------
