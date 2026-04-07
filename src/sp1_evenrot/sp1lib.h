@@ -255,9 +255,8 @@ extern void           sp1_ClearRectInv(struct sp1_Rect *r, uint8_t colour, uint8
 #define SP1_IFLAG_OVERWRITE_DFILE  0x04
 
 extern void            sp1_Initialize(uint8_t iflag, uint8_t colour, uint8_t tile) __sdcccall(1);
-extern void            sp1_UpdateNow(void) __sdcccall(1);
+extern void            sp1_UpdateNow(void);
 
-extern struct sp1_update *sp1_GetUpdateStruct(uint8_t row, uint8_t col) __sdcccall(1);
 extern void            sp1_IterateUpdateArr(struct sp1_update **ua, void *hook) __sdcccall(1);
 extern void            sp1_IterateUpdateRect(struct sp1_Rect *r, void *hook) __sdcccall(1);
 

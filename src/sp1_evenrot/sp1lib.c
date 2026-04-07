@@ -1,4 +1,4 @@
-#include "sp1lib.h"
+#include "_sp1lib.h"
 
 // =========================================================
 // UPDATER WRAPPERS
@@ -9,12 +9,27 @@
 //   (consecutive u8 stack args packed as words: low=earlier, high=later)
 // =========================================================
 
-// void sp1_UpdateNow(void)
-void sp1_UpdateNow(void) __naked __sdcccall(1) {
-   __asm
-      jp   asm_sp1_UpdateNow
-   __endasm;
-}
+// void sp1_IterateUpdateRect(struct sp1_Rect *r, void *hook)
+// sdcc: HL=r, DE=hook
+// asm:  D=row, E=col, B=width, C=height, IX=hook
+//void sp1_IterateUpdateRect(struct sp1_Rect *r, void *hook) __naked __sdcccall(1) {
+//   r; hook;
+//   __asm
+//      push ix
+//      push de
+//      pop  ix              ; IX = hook
+//      ld   d, (hl)         ; D = row
+//      inc  hl
+//      ld   e, (hl)         ; E = col
+//      inc  hl
+//      ld   b, (hl)         ; B = width
+//      inc  hl
+//      ld   c, (hl)         ; C = height
+//      call sp1_IterateUpdateRect
+//      pop  ix              ; restore caller IX
+//      ret
+//   __endasm;
+//}
 
 // void sp1_Initialize(u8 iflag, u8 colour, u8 tile)
 // sdcc: A=iflag, L=colour, [SP+2]=tile
@@ -29,38 +44,11 @@ void sp1_Initialize(uint8_t iflag, uint8_t colour, uint8_t tile) __naked __sdccc
       ld   l, (hl)          ; L=tile
       ld   h, d             ; H=colour
       defb 0x08              ; ex af,af_alt -> A=iflag
-      call asm_sp1_Initialize
+      call sp1_Initialize
       ; callee-cleanup: remove 1 stack byte (tile)
       pop  hl               ; HL=return address, SP+=2
       inc  sp               ; SP+=1 (tile cleaned)
       jp   (hl)             ; return to caller
-   __endasm;
-}
-
-
-// struct sp1_update *sp1_GetUpdateStruct(u8 row, u8 col)
-// sdcc: A=row, L=col
-// asm:  D=row, E=col -> returns HL=ptr
-// SDCC optimizer sometimes uses DE instead of HL for the return value when HL is
-// immediately repurposed for the store destination (e.g. star_list[i] = sp1_GetUpdateStruct(...)).
-struct sp1_update *sp1_GetUpdateStruct(uint8_t row, uint8_t col) __naked __sdcccall(1) {
-   row; col;
-   __asm
-      ld   d, a
-      ld   e, l
-      call asm_sp1_GetUpdateStruct  ; HL = update struct ptr
-      ld   d, h                     ; DE = ptr (for SDCC store-to-mem optimization)
-      ld   e, l
-      ret
-   __endasm;
-}
-
-// void sp1_InvUpdateStruct(struct sp1_update *u)
-// sdcc: HL=u  asm: HL=u
-void sp1_InvUpdateStruct(struct sp1_update *u) __naked __sdcccall(1) {
-   u;
-   __asm
-      jp   asm_sp1_InvUpdateStruct
    __endasm;
 }
 
@@ -73,7 +61,7 @@ void sp1_IterateUpdateArr(struct sp1_update **ua, void *hook) __naked __sdcccall
       push de
       pop  ix              ; IX = hook
                            ; HL = ua already
-      call asm_sp1_IterateUpdateArr
+      call sp1_IterateUpdateArr
       pop  ix              ; restore caller IX
       ret
    __endasm;
@@ -91,7 +79,7 @@ void sp1_Invalidate(struct sp1_Rect *r) __naked __sdcccall(1) {
       ld   b, (hl)
       inc  hl
       ld   c, (hl)
-      jp   asm_sp1_Invalidate
+      jp   sp1_Invalidate
    __endasm;
 }
 
@@ -106,7 +94,7 @@ void *sp1_TileEntry(uint8_t c, void *def) __naked __sdcccall(1) {
    c; def;
    __asm
       ld   c, a             ; C=c, DE already=def
-      jp   asm_sp1_TileEntry
+      jp   _sp1_TileEntry_asm
    __endasm;
 }
 
@@ -126,7 +114,7 @@ void sp1_PrintAt(uint8_t row, uint8_t col, uint8_t colour, uint16_t tile) __nake
       ld   c, (hl)
       inc  hl               ; HL=&tile_hi
       ld   b, (hl)          ; BC=tile
-      call asm_sp1_PrintAt
+      call _sp1_PrintAt_asm
       pop  hl               ; HL = caller return address
       inc  sp               ; skip colour byte
       inc  sp               ; skip tile_lo byte
@@ -160,8 +148,8 @@ void sp1_ClearRect(struct sp1_Rect *r, uint8_t colour, uint8_t tile, uint8_t rfl
       ld   l, a             ; L=tile
       defb 0x08             ; ex af,af_alt -> A=rflag
       push iy
-      push ix               ; save IX: SP1CRSELECT clobbers IX (loads draw fn ptr via ld ixl/ixh)
-      call asm_sp1_ClearRect
+      push ix               ; save IX: _sp1_CrSelect clobbers IX (loads draw fn ptr via ld ixl/ixh)
+      call sp1_ClearRect
       pop  ix               ; restore IX
       pop  iy
       ; callee-cleanup: remove 3 stack bytes (colour=1, tile=1, rflag=1)
@@ -198,8 +186,8 @@ void sp1_ClearRectInv(struct sp1_Rect *r, uint8_t colour, uint8_t tile, uint8_t 
       ld   l, a             ; L=tile
       defb 0x08             ; ex af,af_alt -> A=rflag
       push iy
-      push ix               ; save IX: SP1CRSELECT clobbers IX (loads draw fn ptr via ld ixl/ixh)
-      call asm_sp1_ClearRectInv
+      push ix               ; save IX: _sp1_CrSelect clobbers IX (loads draw fn ptr via ld ixl/ixh)
+      call sp1_ClearRectInv
       pop  ix               ; restore IX
       pop  iy
       ; callee-cleanup: remove 3 stack bytes (colour=1, tile=1, rflag=1)
@@ -235,7 +223,7 @@ struct sp1_ss *sp1_CreateSpr(void *drawf, uint8_t type, uint8_t height, uint16_t
       ld   d, (hl)          ; D=graphic_hi (SP+7) -> DE=graphic
       pop  hl               ; HL=drawf
       ex   de, hl           ; HL=graphic, DE=drawf
-      call asm_sp1_CreateSpr  ; returns sprite ptr in DE; asm saves/restores IX and IY internally
+      call sp1_CreateSpr  ; returns sprite ptr in DE; asm saves/restores IX and IY internally
       ex   de, hl           ; HL=sprite ptr (sdcccall return value)
       ; callee-cleanup: remove 5 stack bytes (type=1, height=1, graphic=2, plane=1)
       pop  hl               ; HL=return address, SP+=2
@@ -267,7 +255,7 @@ uint16_t sp1_AddColSpr(struct sp1_ss *s, void *drawf, uint8_t type, uint16_t gra
       ld   l, a             ; L=type
       pop  ix               ; IX=s (from push hl above)
       push iy
-      call asm_sp1_AddColSpr
+      call sp1_AddColSpr
       pop  iy
       pop  ix               ; restore caller IX (frame pointer)
       ; callee-cleanup: remove 4 stack bytes (type_dup=1, graphic=2, plane=1)
@@ -277,15 +265,6 @@ uint16_t sp1_AddColSpr(struct sp1_ss *s, void *drawf, uint8_t type, uint16_t gra
       inc  sp
       inc  sp               ; SP+=4 (args cleaned)
       jp   (hl)             ; return to caller
-   __endasm;
-}
-
-// void sp1_DeleteSpr(struct sp1_ss *s)
-// sdcc: HL=s  asm: HL=s
-void sp1_DeleteSpr(struct sp1_ss *s) __naked __sdcccall(1) {
-   s;
-   __asm
-      jp   asm_sp1_DeleteSpr
    __endasm;
 }
 
@@ -321,7 +300,7 @@ void sp1_MoveSprAbs(struct sp1_ss *s, struct sp1_Rect *clip, void *frame,
       inc  hl
       ld   h, (hl)          ; H=frame_hi (SP+7)
       ld   l, a             ; HL=frame
-      call asm_sp1_MoveSprAbs
+      call sp1_MoveSprAbs
       pop  iy               ; restore library IY
       pop  ix               ; restore caller IX (SDCC frame pointer)
       ; callee-cleanup: 6 stack bytes (frame=2, row=1, col=1, vrot=1, hrot=1)
@@ -368,7 +347,7 @@ void sp1_MoveSprRel(struct sp1_ss *s, struct sp1_Rect *clip, void *frame,
       inc  hl
       ld   h, (hl)          ; H=frame_hi (SP+7)
       ld   l, a             ; HL=frame
-      call asm_sp1_MoveSprRel
+      call sp1_MoveSprRel
       pop  iy               ; restore library IY
       pop  ix               ; restore caller IX (SDCC frame pointer)
       ; callee-cleanup: 6 stack bytes (frame=2, rel_row=1, rel_col=1, rel_vrot=1, rel_hrot=1)
@@ -414,7 +393,7 @@ void sp1_MoveSprPix(struct sp1_ss *s, struct sp1_Rect *clip, void *frame,
       inc  hl
       ld   h, (hl)
       ld   l, a             ; HL=frame
-      call asm_sp1_MoveSprPix  ; IX=s, IY=clip, HL=frame, DE=x, BC=y
+      call _sp1_MoveSprPix_asm  ; IX=s, IY=clip, HL=frame, DE=x, BC=y
       pop  iy               ; restore IY. Stack: [saved_IX, ret, frame, x, y]
       pop  ix               ; restore callers IX. Stack: [ret, frame, x, y]
       ; callee-cleanup: remove 6 stack bytes (frame=2, x=2, y=2)
@@ -429,71 +408,9 @@ void sp1_MoveSprPix(struct sp1_ss *s, struct sp1_Rect *clip, void *frame,
    __endasm;
 }
 
-
-// void sp1_CreateCharStruct(sp1_cs *pTChar, u8 *addr, u8 x, u8 y, u8 plane)
-// sdcccall(1) actual entry (SDCC adjacency trick pushes x+y together as one word):
-//   HL=pTChar, DE=addr, A=y_or_x (unreliable, ignored)
-//   stack=[retaddr(2), screen_y(SP+2), screen_x(SP+3), plane(SP+4)]  <- 3 bytes
-void sp1_CreateCharStruct(struct sp1_cs *pTChar, uint8_t *addr, uint8_t x, uint8_t y, uint8_t plane) __naked __sdcccall(1) {
-   pTChar; addr; x; y; plane;
-   __asm
-      push hl                     ; save pTChar. Stack: [pTChar(2), retaddr(2), y(SP+4), x(SP+5), plane(SP+6)]
-      ;
-      ld   b, d
-      ld   c, e                   ; BC = addr (graphic)
-      ;
-      ; Load y and x from stack (SP+4 and SP+5 after one push)
-      ld   hl, 4
-      add  hl, sp
-      ld   d, (hl)                ; D = y
-      inc  hl
-      ld   e, (hl)                ; E = x  ->  DE = {y(hi), x(lo)} for push
-      push de                     ; save {y,x}. Stack: [x(SP+0),y(SP+1), pTChar(2), retaddr(2), y(SP+6),x(SP+7),plane(SP+8)]
-      ;
-      ; Load plane (at SP+8 after two pushes) into A_alt
-      ld   hl, 8
-      add  hl, sp
-      ld   a, (hl)                ; A = plane
-      defb 0x08                   ; ex af,af_alt: A_alt = plane
-      ;
-      ; Load HL = pTChar (at SP+2)
-      ld   hl, 2
-      add  hl, sp
-      ld   a, (hl)                ; A = pTChar_lo (temp)
-      inc  hl
-      ld   h, (hl)
-      ld   l, a                   ; HL = pTChar (cs)
-      ;
-      ld   de, _SP1_DRAW_MASK2NR  ; DE = drawf
-      ld   a, 0x40                ; A = SP1_TYPE_2BYTE (must reload: was clobbered by HL construction)
-      call asm_sp1_InitCharStruct
-      ;
-      ; asm_sp1_GetUpdateStruct(D=y, E=x) -> HL=update_ptr
-      pop  de                     ; pop de: E=x(SP+0), D=y(SP+1). Stack: [pTChar(2), retaddr(2), y,x,plane]
-      call asm_sp1_GetUpdateStruct ; HL = update_ptr
-      ;
-      ; asm_sp1_InsertCharStruct(HL=cs, DE=update_ptr)
-      ex   de, hl                 ; DE = update_ptr
-      pop  hl                     ; HL = pTChar. Stack: [retaddr(2), y, x, plane]
-      push de                     ; save update_ptr. Stack: [update_ptr(2), retaddr(2), y, x, plane]
-      call asm_sp1_InsertCharStruct
-      ;
-      ; asm_sp1_InvUpdateStruct(HL=update_ptr)
-      pop  hl                     ; HL = update_ptr. Stack: [retaddr(2), y, x, plane]
-      call asm_sp1_InvUpdateStruct
-      ;
-      ; Callee cleanup: y(1) + x(1) + plane(1) = 3 bytes + return
-      pop  hl                     ; HL = retaddr. Stack: [y, x, plane]
-      inc  sp                     ; skip y
-      inc  sp                     ; skip x
-      inc  sp                     ; skip plane
-      jp   (hl)                   ; return to caller
-   __endasm;
-}
-
 // void sp1_IterateSprChar(struct sp1_ss *s, void *hook1)
 // asm: HL=s, IX=hook1
-// asm calls hook via l_jpix (jp ix) with __SDCC push order:
+// asm calls hook via _sp1_jpix (jp ix) with __SDCC push order:
 //   push hl (&cs), push bc (count) -> hook sees [IX+4]=count, [IX+6]=&cs
 void sp1_IterateSprChar(struct sp1_ss *s, void *hook1) __naked __sdcccall(1) {
    s; hook1;
@@ -501,24 +418,15 @@ void sp1_IterateSprChar(struct sp1_ss *s, void *hook1) __naked __sdcccall(1) {
       push ix
       push de
       pop  ix               ; IX = hook1
-      call asm_sp1_IterateSprChar
+      call sp1_IterateSprChar
       pop  ix               ; restore caller IX
       ret
    __endasm;
 }
 
-// void sp1_RemoveCharStruct(struct sp1_cs *cs)
-// sdcc: HL=cs  asm: HL=cs
-void sp1_RemoveCharStruct(struct sp1_cs *cs) __naked __sdcccall(1) {
-   cs;
-   __asm
-      jp   asm_sp1_RemoveCharStruct
-   __endasm;
-}
-
 // void sp1_PutTiles(struct sp1_Rect *r, struct sp1_tp *src)
 // sdcc: HL=r, DE=src
-// asm_sp1_PutTiles: HL=src, D=row, E=col, B=width, C=height
+// sp1_PutTiles: HL=src, D=row, E=col, B=width, C=height
 void sp1_PutTiles(struct sp1_Rect *r, struct sp1_tp *src) __naked __sdcccall(1) {
    r; src;
    __asm
@@ -531,8 +439,8 @@ void sp1_PutTiles(struct sp1_Rect *r, struct sp1_tp *src) __naked __sdcccall(1) 
       inc  hl
       ld   c, (hl)     ; C = height
       pop  hl          ; HL = src
-      push ix          ; save IX: asm_sp1_PutTiles clobbers IXL (uses it as row counter)
-      call asm_sp1_PutTiles
+      push ix          ; save IX: sp1_PutTiles clobbers IXL (uses it as row counter)
+      call sp1_PutTiles
       pop  ix
       ret
    __endasm;
@@ -540,7 +448,7 @@ void sp1_PutTiles(struct sp1_Rect *r, struct sp1_tp *src) __naked __sdcccall(1) 
 
 // void sp1_PutTilesInv(struct sp1_Rect *r, struct sp1_tp *src)
 // sdcc: HL=r, DE=src
-// asm_sp1_PutTilesInv: HL=src, D=row, E=col, B=width, C=height
+// sp1_PutTilesInv: HL=src, D=row, E=col, B=width, C=height
 void sp1_PutTilesInv(struct sp1_Rect *r, struct sp1_tp *src) __naked __sdcccall(1) {
    r; src;
    __asm
@@ -553,8 +461,8 @@ void sp1_PutTilesInv(struct sp1_Rect *r, struct sp1_tp *src) __naked __sdcccall(
       inc  hl
       ld   c, (hl)     ; C = height
       pop  hl          ; HL = src
-      push ix          ; save IX: asm_sp1_PutTilesInv clobbers all of IX (loads update list tail ptr)
-      call asm_sp1_PutTilesInv
+      push ix          ; save IX: sp1_PutTilesInv clobbers all of IX (loads update list tail ptr)
+      call sp1_PutTilesInv
       pop  ix
       ret
    __endasm;
@@ -602,12 +510,10 @@ static void __sp1_asm_engine(void) __naked {
     EXTERN __free
 
     ; =========================================================================
-    ; MODULE: sp1__struct_ss_prototype
+    ; MODULE: _sp1_struct_ss_prototype
     ; =========================================================================
     PUBLIC _sp1_struct_ss_prototype
-
     _sp1_struct_ss_prototype:
-
        defb 0
        defb SP1V_DISPWIDTH
        defb 1
@@ -628,12 +534,10 @@ static void __sp1_asm_engine(void) __naked {
        defb 0
 
     ; =========================================================================
-    ; MODULE: sp1__struct_cs_prototype
+    ; MODULE: _sp1_struct_cs_prototype
     ; =========================================================================
     PUBLIC _sp1_struct_cs_prototype
-
     _sp1_struct_cs_prototype:
-
        defw 0
        defw 0
        defb 0
@@ -653,14 +557,12 @@ static void __sp1_asm_engine(void) __naked {
     ; MODULE: sp1_DRAW_MASK2NR
     ; =========================================================================
     PUBLIC _SP1_DRAW_MASK2NR
-
        ld hl,0
        nop
        ld de,0
        call _SP1_DRAW_MASK2NR
 
     _SP1_DRAW_MASK2NR:
-
        add hl,bc
 
        ld de,(SP1V_PIXELBUFFER+0)
@@ -718,20 +620,18 @@ static void __sp1_asm_engine(void) __naked {
        or (hl)
        ld (SP1V_PIXELBUFFER+7),a
 
-       jp SP1RETSPRDRAW
+       jp _sp1_RetSprDraw
 
     ; =========================================================================
     ; MODULE: sp1_DRAW_MASK2LB
     ; =========================================================================
     PUBLIC _SP1_DRAW_MASK2LB
-
        ld hl,0
        nop
        ld de,0
        call _SP1_DRAW_MASK2LB
 
     _SP1_DRAW_MASK2LB:
-
        cp SP1V_ROTTBL/256
        jp z, _SP1_DRAW_MASK2NR
 
@@ -746,7 +646,6 @@ static void __sp1_asm_engine(void) __naked {
        exx
 
     _SP1Mask2LBRotate:
-
        ld bc,(SP1V_PIXELBUFFER+0)
        ld e,(hl)
        inc hl
@@ -858,42 +757,37 @@ static void __sp1_asm_engine(void) __naked {
        or b
        ld (SP1V_PIXELBUFFER+7),a
 
-       jp SP1RETSPRDRAW
+       jp _sp1_RetSprDraw
 
     ; =========================================================================
     ; MODULE: sp1_DRAW_MASK2RB
     ; =========================================================================
     PUBLIC _SP1_DRAW_MASK2RB
-
        ld de,0
        nop
        ld hl,0
        call _SP1_DRAW_MASK2RB
 
     _SP1_DRAW_MASK2RB:
-
        cp SP1V_ROTTBL/256
-       jp z, SP1RETSPRDRAW
+       jp z, _sp1_RetSprDraw
 
        add hl,bc
        ld d,a
        inc d
 
     _SP1Mask2RBRotate:
-
        jp _SP1_DRAW_MASK2LB + 7
 
     ; =========================================================================
     ; MODULE: sp1_DRAW_MASK2
     ; =========================================================================
     PUBLIC _SP1_DRAW_MASK2
-
        ld hl,0
        ld ix,0
        call _SP1_DRAW_MASK2
 
     _SP1_DRAW_MASK2:
-
        cp SP1V_ROTTBL/256
        jp z, _SP1_DRAW_MASK2NR
 
@@ -903,7 +797,6 @@ static void __sp1_asm_engine(void) __naked {
        ld h,a
 
     _SP1Mask2Rotate:
-
        ld a,(de)
        inc de
        ld l,a
@@ -1063,16 +956,12 @@ static void __sp1_asm_engine(void) __naked {
        or (hl)
        ld (SP1V_PIXELBUFFER+7),a
 
-       jp SP1RETSPRDRAW
+       jp _sp1_RetSprDraw
 
     ; =========================================================================
-    ; MODULE: sp1_DrawUpdateStruct
+    ; MODULE: _sp1_DrawUpdateStruct
     ; =========================================================================
-    PUBLIC SP1DrawUpdateStruct
-    PUBLIC SP1RETSPRDRAW
-
     .DrawUpdateStruct_haveocclspr
-
        inc hl
        push hl
        dec hl
@@ -1080,12 +969,10 @@ static void __sp1_asm_engine(void) __naked {
        jp DrawUpdateStruct_skiplp
 
     .DrawUpdateStruct_skipthisone
-
        ld hl,15
        add hl,de
 
     .DrawUpdateStruct_skiplp
-
        ld d,(hl)
        inc hl
        ld e,(hl)
@@ -1111,7 +998,6 @@ static void __sp1_asm_engine(void) __naked {
        ld l,a
 
     .DrawUpdateStruct_havetiledef2
-
        push de
        ld de,SP1V_PIXELBUFFER
        ldi
@@ -1126,13 +1012,11 @@ static void __sp1_asm_engine(void) __naked {
        pop de
 
     .DrawUpdateStruct_noclearbuff
-
        ex de,hl
        inc hl
        jp DrawUpdateStruct_spritedraw
 
-    SP1DrawUpdateStruct:
-
+    _sp1_DrawUpdateStruct:
        inc hl
        ld a,(hl)
        ld (SP1V_ATTRBUFFER),a
@@ -1157,7 +1041,6 @@ static void __sp1_asm_engine(void) __naked {
        ld l,a
 
     .DrawUpdateStruct_havetiledef
-
        ld a,(de)
        or a
        jr z, DrawUpdateStruct_drawtileonly
@@ -1180,12 +1063,10 @@ static void __sp1_asm_engine(void) __naked {
        push hl
 
     .DrawUpdateStruct_spritedrawlp
-
        ld l,(hl)
        ld h,a
 
     .DrawUpdateStruct_spritedraw
-
        ld a,(SP1V_ATTRBUFFER)
        and (hl)
        inc hl
@@ -1202,7 +1083,6 @@ static void __sp1_asm_engine(void) __naked {
        jp (hl)
 
     .DrawUpdateStruct_drawtileonly
-
        ex de,hl
        inc hl
        inc hl
@@ -1265,8 +1145,7 @@ static void __sp1_asm_engine(void) __naked {
 
        ret
 
-    SP1RETSPRDRAW:
-
+    _sp1_RetSprDraw:
        pop hl
        ld a,(hl)
        inc hl
@@ -1276,7 +1155,6 @@ static void __sp1_asm_engine(void) __naked {
        pop hl
 
     .DrawUpdateStruct_donesprites
-
        inc hl
        ld b,(hl)
        inc hl
@@ -1308,7 +1186,6 @@ static void __sp1_asm_engine(void) __naked {
        ld (hl),d
 
     .DrawUpdateStruct_rejoin
-
        ld a,h
        xor $85
        rrca
@@ -1322,12 +1199,26 @@ static void __sp1_asm_engine(void) __naked {
        ret
 
     ; =========================================================================
-    ; MODULE: sp1_GetUpdateStruct
+    ; MODULE: _sp1_DrawUpdateStructIfInv
     ; =========================================================================
-    PUBLIC asm_sp1_GetUpdateStruct
+    ;PUBLIC _sp1_DrawUpdateStructIfInv
+    ;_sp1_DrawUpdateStructIfInv:
+    ;   bit 6,(hl)
+    ;   ret nz              ; do not draw if removed
+	;
+    ;   ld a,(hl)
+    ;   xor $80
+    ;   ret m               ; do not draw if already validated (bit 7 was clear)
+    ;   ld (hl),a           ; mark as validated
+	;
+    ;   ld b,a
+    ;   jp _sp1_DrawUpdateStruct
 
-    asm_sp1_GetUpdateStruct:
-
+    ; =========================================================================
+    ; MODULE: _sp1_GetUpdateStruct
+    ; =========================================================================
+    PUBLIC _sp1_GetUpdateStruct
+    _sp1_GetUpdateStruct:
        ld l,d
        ld h,0
        ld a,d
@@ -1337,9 +1228,7 @@ static void __sp1_asm_engine(void) __naked {
        dec h
 
     .nohtadj
-
        IF SP1V_DISPWIDTH=32
-
           add hl,hl
           add hl,hl
           add hl,hl
@@ -1349,11 +1238,8 @@ static void __sp1_asm_engine(void) __naked {
           cp SP1V_DISPWIDTH
           jp c, nowiadj
           dec d
-
        .nowiadj
-
           add hl,de
-
        ENDIF
 
        add hl,hl
@@ -1369,12 +1255,10 @@ static void __sp1_asm_engine(void) __naked {
        ret
 
     ; =========================================================================
-    ; MODULE: sp1_InvUpdateStruct
+    ; MODULE: _sp1_InvUpdateStruct
     ; =========================================================================
-    PUBLIC asm_sp1_InvUpdateStruct
-
-    asm_sp1_InvUpdateStruct:
-
+    PUBLIC _sp1_InvUpdateStruct
+    _sp1_InvUpdateStruct:
        ld a,$80
        xor (hl)
        ret p
@@ -1395,12 +1279,10 @@ static void __sp1_asm_engine(void) __naked {
        ret
 
     ; =========================================================================
-    ; MODULE: sp1_UpdateNow
+    ; MODULE: _sp1_UpdateNow
     ; =========================================================================
-    PUBLIC asm_sp1_UpdateNow
-
-    asm_sp1_UpdateNow:
-
+    PUBLIC _sp1_UpdateNow
+    _sp1_UpdateNow:
        push ix
        push iy
 
@@ -1414,7 +1296,6 @@ static void __sp1_asm_engine(void) __naked {
        jr UpdateNow_all_return
 
     .UpdateNow_skipthischar
-
        ld bc,6
        add hl,bc
        ld a,(hl)
@@ -1425,7 +1306,6 @@ static void __sp1_asm_engine(void) __naked {
        ld h,a
 
     .UpdateNow_updatelp
-
        bit 6,(hl)
        jr nz, UpdateNow_skipthischar
 
@@ -1436,7 +1316,7 @@ static void __sp1_asm_engine(void) __naked {
 
        ld b,a
 
-       call SP1DrawUpdateStruct
+       call _sp1_DrawUpdateStruct
 
        ld l,c
        ld h,b
@@ -1445,7 +1325,6 @@ static void __sp1_asm_engine(void) __naked {
        djnz UpdateNow_updatelp
 
     .UpdateNow_doneupdate
-
        xor a
        ld (SP1V_UPDATELISTH+6),a
        ld hl,SP1V_UPDATELISTH
@@ -1459,11 +1338,8 @@ static void __sp1_asm_engine(void) __naked {
     ; =========================================================================
     ; MODULE: sp1_Invalidate
     ; =========================================================================
-    PUBLIC asm_sp1_Invalidate
-
-    asm_sp1_Invalidate:
-
-       call asm_sp1_GetUpdateStruct
+    sp1_Invalidate:
+       call _sp1_GetUpdateStruct
        ex de,hl
        ld hl,(SP1V_UPDATELISTT)
        ld a,6
@@ -1473,12 +1349,10 @@ static void __sp1_asm_engine(void) __naked {
        inc h
 
     .rowlp
-
        push bc
        push de
 
     .collp
-
        ld a,(de)
        xor $80
        jp p, alreadyinlist
@@ -1492,7 +1366,6 @@ static void __sp1_asm_engine(void) __naked {
        add hl,de
 
     .alreadyinlist
-
        ld a,10
        add a,e
        ld e,a
@@ -1500,7 +1373,6 @@ static void __sp1_asm_engine(void) __naked {
        inc d
 
     .noinc
-
        djnz collp
 
        pop de
@@ -1521,30 +1393,23 @@ static void __sp1_asm_engine(void) __naked {
        ret
 
     ; =========================================================================
-    ; MODULE: sp1_ClearRect  (also defines SP1CRSELECT and l_jpix)
+    ; MODULE: sp1_ClearRect  (also defines _sp1_CrSelect and _sp1_jpix)
     ; =========================================================================
-    PUBLIC asm_sp1_ClearRect
-    PUBLIC SP1CRSELECT
-    PUBLIC l_jpix
-
-    asm_sp1_ClearRect:
-
+    sp1_ClearRect:
        and $07
        ret z
 
        push hl
-       call SP1CRSELECT
-       call asm_sp1_GetUpdateStruct
+       call _sp1_CrSelect
+       call _sp1_GetUpdateStruct
        pop de
 
     .ClearRect_rowloop
-
        push bc
        push hl
 
     .ClearRect_colloop
-
-       call l_jpix
+       call _sp1_jpix
        djnz ClearRect_colloop
 
        pop hl
@@ -1557,8 +1422,7 @@ static void __sp1_asm_engine(void) __naked {
 
        ret
 
-    SP1CRSELECT:
-
+    _sp1_CrSelect:
        push de
        add a,a
        ld e,a
@@ -1575,12 +1439,10 @@ static void __sp1_asm_engine(void) __naked {
        ret
 
     .ClearRect_seltbl
-
        defw ClearRect_OPTION0, ClearRect_OPTION1, ClearRect_OPTION2, ClearRect_OPTION3
        defw ClearRect_OPTION4, ClearRect_OPTION5, ClearRect_OPTION6, ClearRect_OPTION7
 
     .ClearRect_OPTION0:
-
        ld a,10
        add a,l
        ld l,a
@@ -1589,7 +1451,6 @@ static void __sp1_asm_engine(void) __naked {
        ret
 
     .ClearRect_OPTION1:
-
        inc hl
        inc hl
        ld (hl),e
@@ -1603,7 +1464,6 @@ static void __sp1_asm_engine(void) __naked {
        ret
 
     .ClearRect_OPTION2:
-
        inc hl
        ld (hl),d
        ld a,9
@@ -1614,7 +1474,6 @@ static void __sp1_asm_engine(void) __naked {
        ret
 
     .ClearRect_OPTION3:
-
        inc hl
        ld (hl),d
        inc hl
@@ -1629,7 +1488,6 @@ static void __sp1_asm_engine(void) __naked {
        ret
 
     .ClearRect_OPTION4:
-
        ld a,(hl)
        and $c0
        inc a
@@ -1650,7 +1508,6 @@ static void __sp1_asm_engine(void) __naked {
        ld h,a
 
     .ClearRect_loop
-
        dec hl
        dec hl
        dec hl
@@ -1664,7 +1521,6 @@ static void __sp1_asm_engine(void) __naked {
        inc h
 
     .ClearRect_noinc1
-
        ld a,(hl)
        or a
        jr z, ClearRect_done
@@ -1675,7 +1531,6 @@ static void __sp1_asm_engine(void) __naked {
        jp ClearRect_loop
 
     .ClearRect_done
-
        pop hl
        ld a,6
        add a,l
@@ -1685,7 +1540,6 @@ static void __sp1_asm_engine(void) __naked {
        ret
 
     .ClearRect_OPTION5:
-
        inc hl
        inc hl
        ld (hl),e
@@ -1697,14 +1551,12 @@ static void __sp1_asm_engine(void) __naked {
        jp ClearRect_OPTION4
 
     .ClearRect_OPTION6:
-
        inc hl
        ld (hl),d
        dec hl
        jp ClearRect_OPTION4
 
     .ClearRect_OPTION7:
-
        inc hl
        ld (hl),d
        inc hl
@@ -1716,33 +1568,28 @@ static void __sp1_asm_engine(void) __naked {
        dec hl
        jp ClearRect_OPTION4
 
-    l_jpix:
+    _sp1_jpix:
        jp (ix)
 
     ; =========================================================================
     ; MODULE: sp1_ClearRectInv
     ; =========================================================================
-    PUBLIC asm_sp1_ClearRectInv
-
-    asm_sp1_ClearRectInv:
-
+    sp1_ClearRectInv:
        and $07
        ret z
 
        push hl
-       call SP1CRSELECT
-       call asm_sp1_GetUpdateStruct
+       call _sp1_CrSelect
+       call _sp1_GetUpdateStruct
        pop de
 
        ld iy,(SP1V_UPDATELISTT)
 
     .rowloop
-
        push bc
        push hl
 
     .colloop
-
        ld a,$80
        xor (hl)
        jp p, alreadyinv
@@ -1757,8 +1604,7 @@ static void __sp1_asm_engine(void) __naked {
        ld iyh,a
 
     .alreadyinv
-
-       call l_jpix
+       call _sp1_jpix
        djnz colloop
 
        pop hl
@@ -1774,12 +1620,9 @@ static void __sp1_asm_engine(void) __naked {
        ret
 
     ; =========================================================================
-    ; MODULE: sp1__add_spr_char
+    ; MODULE: _sp1_add_spr_char
     ; =========================================================================
-    PUBLIC __sp1_add_spr_char
-
-    __sp1_add_spr_char:
-
+    _sp1_add_spr_char:
        ld d,(hl)
        inc hl
        inc d
@@ -1795,10 +1638,9 @@ static void __sp1_asm_engine(void) __naked {
        ld de,16
        add hl,de
 
-       jp __sp1_add_spr_char
+       jp _sp1_add_spr_char
 
     ._add_spr_char_donesearch1:
-
        ld (hl),c
        dec hl
        ld (hl),b
@@ -1815,7 +1657,6 @@ static void __sp1_asm_engine(void) __naked {
        ret
 
     ._add_spr_char_donesearch0:
-
        inc hl
        inc hl
        ex de,hl
@@ -1846,12 +1687,9 @@ static void __sp1_asm_engine(void) __naked {
        ret
 
     ; =========================================================================
-    ; MODULE: sp1__remove_spr_char
+    ; MODULE: _sp1_remove_spr_char
     ; =========================================================================
-    PUBLIC __sp1_remove_spr_char
-
-    __sp1_remove_spr_char:
-
+    _sp1_remove_spr_char:
        ld de,14
        add hl,de
 
@@ -1870,7 +1708,6 @@ static void __sp1_asm_engine(void) __naked {
        ret
 
     ._remove_spr_char_nextexists:
-
        ld c,(hl)
        inc hl
        ld d,(hl)
@@ -1895,12 +1732,10 @@ static void __sp1_asm_engine(void) __naked {
        ret
 
     ; =========================================================================
-    ; MODULE: sp1_InitCharStruct
+    ; MODULE: _sp1_InitCharStruct
     ; =========================================================================
-    PUBLIC asm_sp1_InitCharStruct
-
-    asm_sp1_InitCharStruct:
-
+    PUBLIC _sp1_InitCharStruct
+    _sp1_InitCharStruct:
        push bc
        push de
 
@@ -1952,19 +1787,16 @@ static void __sp1_asm_engine(void) __naked {
        ret
 
     .InitCharStruct_sp1_ss_embedded:
-
        ld a,SP1V_ROTTBL/256 + 4
        ld bc,0
        ex de,hl
        jp (hl)
 
     ; =========================================================================
-    ; MODULE: sp1_InsertCharStruct
+    ; MODULE: _sp1_InsertCharStruct
     ; =========================================================================
-    PUBLIC asm_sp1_InsertCharStruct
-
-    asm_sp1_InsertCharStruct:
-
+    PUBLIC _sp1_InsertCharStruct
+    _sp1_InsertCharStruct:
        inc hl
        inc hl
        ld (hl),d
@@ -1980,21 +1812,18 @@ static void __sp1_asm_engine(void) __naked {
        inc (hl)
 
     .InsertCharStruct_notoccluding:
-
        inc de
        ld c,e
        ld b,d
        ld de,4
        add hl,de
-       jp __sp1_add_spr_char
+       jp _sp1_add_spr_char
 
     ; =========================================================================
-    ; MODULE: sp1_RemoveCharStruct
+    ; MODULE: _sp1_RemoveCharStruct
     ; =========================================================================
-    PUBLIC asm_sp1_RemoveCharStruct
-
-    asm_sp1_RemoveCharStruct:
-
+    PUBLIC _sp1_RemoveCharStruct
+    _sp1_RemoveCharStruct:
        inc hl
        inc hl
 
@@ -2015,20 +1844,16 @@ static void __sp1_asm_engine(void) __naked {
        dec (hl)
 
     .RemoveCharStruct_notoccluding:
-
        inc de
        ld hl,17
        add hl,de
        ex de,hl
-       jp __sp1_remove_spr_char
+       jp _sp1_remove_spr_char
 
     ; =========================================================================
     ; MODULE: sp1_CreateSpr
     ; =========================================================================
-    PUBLIC asm_sp1_CreateSpr
-
-    asm_sp1_CreateSpr:
-
+    sp1_CreateSpr:
        push ix
        push iy
 
@@ -2042,7 +1867,6 @@ static void __sp1_asm_engine(void) __naked {
        ld b,a
 
     .CreateSpr_csalloc:
-
        push bc
        ld hl,24
        push hl
@@ -2083,7 +1907,6 @@ static void __sp1_asm_engine(void) __naked {
        set 7,(ix+4)
 
     .CreateSpr_onebyte:
-
        ld a,b
        and $90
        or $40
@@ -2132,7 +1955,6 @@ static void __sp1_asm_engine(void) __naked {
        ld (iy+12),h
 
     .CreateSpr_loop:
-
        pop hl
 
        ld a,h
@@ -2164,7 +1986,6 @@ static void __sp1_asm_engine(void) __naked {
        ld l,16
 
     .CreateSpr_onebyte2:
-
        add hl,de
        ld (iy+11),l
        ld (iy+12),h
@@ -2172,7 +1993,6 @@ static void __sp1_asm_engine(void) __naked {
        jp CreateSpr_loop
 
     .CreateSpr_done:
-
        set 5,(iy+5)
        ld a,ixl
        ld l,a
@@ -2182,11 +2002,9 @@ static void __sp1_asm_engine(void) __naked {
        jr CreateSpr_all_return
 
     .CreateSpr_fail:
-
        pop bc
 
     .CreateSpr_faillp:
-
        pop hl
 
        ld a,h
@@ -2207,17 +2025,13 @@ static void __sp1_asm_engine(void) __naked {
     ; =========================================================================
     ; MODULE: sp1_AddColSpr
     ; =========================================================================
-    PUBLIC asm_sp1_AddColSpr
-
-    asm_sp1_AddColSpr:
-
+    sp1_AddColSpr:
        exx
        ld hl,0
        push hl
        ld b,(ix+3)
 
     .AddColSpr_csalloc:
-
        push bc
        ld hl,24
        push hl
@@ -2279,11 +2093,9 @@ static void __sp1_asm_engine(void) __naked {
        ld l,(ix+16)
 
     .AddColSpr_loop:
-
        ld bc,4
 
     .AddColSpr_search:
-
        ld d,(hl)
        inc hl
        ld e,(hl)
@@ -2339,7 +2151,6 @@ static void __sp1_asm_engine(void) __naked {
        ld l,16
 
     .AddColSpr_onebyte2:
-
        add hl,de
        ld (iy+11),l
        ld (iy+12),h
@@ -2348,7 +2159,6 @@ static void __sp1_asm_engine(void) __naked {
        jr AddColSpr_loop
 
     .AddColSpr_done:
-
        set 5,(iy+5)
        inc (ix+2)
        inc l
@@ -2356,11 +2166,9 @@ static void __sp1_asm_engine(void) __naked {
        ret
 
     .AddColSpr_fail:
-
        pop bc
 
     .AddColSpr_faillp:
-
        pop hl
 
        ld a,h
@@ -2374,18 +2182,15 @@ static void __sp1_asm_engine(void) __naked {
        jr AddColSpr_faillp
 
     ; =========================================================================
-    ; MODULE: sp1_DeleteSpr
+    ; MODULE: _sp1_DeleteSpr
     ; =========================================================================
-    PUBLIC asm_sp1_DeleteSpr
-
-    asm_sp1_DeleteSpr:
-
+    PUBLIC _sp1_DeleteSpr
+    _sp1_DeleteSpr:
        ex de,hl
        ld hl,15
        add hl,de
 
     .DeleteSpr_loop:
-
        ld b,(hl)
        inc hl
        ld c,(hl)
@@ -2408,10 +2213,7 @@ static void __sp1_asm_engine(void) __naked {
     ; =========================================================================
     ; MODULE: sp1_MoveSprAbs
     ; =========================================================================
-    PUBLIC asm_sp1_MoveSprAbs
-
-    asm_sp1_MoveSprAbs:
-
+    sp1_MoveSprAbs:
        ld (ix+5),b
        ld a,b
 
@@ -2429,7 +2231,6 @@ static void __sp1_asm_engine(void) __naked {
        set 7,c
 
     .MoveSprAbs_onebytedef:
-
        ld (ix+4),c
        ld c,a
 
@@ -2449,12 +2250,10 @@ static void __sp1_asm_engine(void) __naked {
        jp MoveSprAbs_framerejoin
 
     .MoveSprAbs_newframe:
-
        ld (ix+6),l
        ld (ix+7),h
 
     .MoveSprAbs_framerejoin:
-
        ld a,c
        or a
        jr z, MoveSprAbs_skipadj
@@ -2463,7 +2262,6 @@ static void __sp1_asm_engine(void) __naked {
        add hl,bc
 
     .MoveSprAbs_skipadj:
-
        ld (ix+11),l
        ld (ix+12),h
 
@@ -2485,14 +2283,13 @@ static void __sp1_asm_engine(void) __naked {
        ld bc,6
        add hl,bc
        push hl
-       call asm_sp1_GetUpdateStruct
+       call _sp1_GetUpdateStruct
        ld b,(ix+0)
        pop de
        push hl
        push de
 
     .MoveSprAbs_NCrowloop:
-
        ld a,b
        inc b
 
@@ -2512,11 +2309,9 @@ static void __sp1_asm_engine(void) __naked {
        ex af,af
 
     .MoveSprAbs_NCnotlastrow:
-
        ld c,(ix+1)
 
     .MoveSprAbs_NCcolloop:
-
        ld a,c
        inc c
 
@@ -2540,7 +2335,6 @@ static void __sp1_asm_engine(void) __naked {
        ex af,af
 
     .MoveSprAbs_NCnotlastcol:
-
        exx
        push af
        inc (ix+19)
@@ -2558,7 +2352,6 @@ static void __sp1_asm_engine(void) __naked {
        pop hl
 
     .MoveSprAbs_NCrejoinaddit:
-
        ld a,(hl)
        xor $80
        jp p, MoveSprAbs_NCalreadyinv0
@@ -2576,12 +2369,10 @@ static void __sp1_asm_engine(void) __naked {
        exx
 
     .MoveSprAbs_NCalreadyinv0:
-
        bit 6,c
        jr nz, MoveSprAbs_NCnextrow
 
     .MoveSprAbs_NCnextcol:
-
        ld bc,10
        add hl,bc
        push hl
@@ -2592,11 +2383,9 @@ static void __sp1_asm_engine(void) __naked {
        jp MoveSprAbs_NCcolloop
 
     .MoveSprAbs_NCclipcol1:
-
        ex af,af
 
     .MoveSprAbs_NCclipcol0:
-
        exx
 
        ld d,(hl)
@@ -2613,13 +2402,11 @@ static void __sp1_asm_engine(void) __naked {
        inc hl
 
     .MoveSprAbs_NCrejoinremove:
-
        bit 6,(hl)
        pop hl
        jr z, MoveSprAbs_NCnextcol
 
     .MoveSprAbs_NCnextrow:
-
        pop hl
 
        ld a,d
@@ -2637,7 +2424,6 @@ static void __sp1_asm_engine(void) __naked {
        jp MoveSprAbs_NCrowloop
 
     .MoveSprAbs_NCaddit:
-
        pop af
        ld b,d
        ld c,e
@@ -2658,14 +2444,13 @@ static void __sp1_asm_engine(void) __naked {
        ex de,hl
 
     .MoveSprAbs_NCnotoccluding10:
-
        inc hl
        push bc
        ld b,h
        ld c,l
        ld hl,4
        add hl,de
-       call __sp1_add_spr_char
+       call _sp1_add_spr_char
        pop de
        pop bc
        pop hl
@@ -2673,7 +2458,6 @@ static void __sp1_asm_engine(void) __naked {
        jp MoveSprAbs_NCrejoinaddit
 
     .MoveSprAbs_NCremoveit:
-
        push de
        ld (hl),0
        inc hl
@@ -2681,7 +2465,7 @@ static void __sp1_asm_engine(void) __naked {
        inc hl
        push hl
        inc hl
-       call __sp1_remove_spr_char
+       call _sp1_remove_spr_char
        pop hl
        pop de
 
@@ -2695,7 +2479,6 @@ static void __sp1_asm_engine(void) __naked {
        ld (bc),a
 
     .MoveSprAbs_NCnotoccluding0:
-
        xor $80
        jp p, MoveSprAbs_NCrejoinremove
        ld (bc),a
@@ -2714,16 +2497,13 @@ static void __sp1_asm_engine(void) __naked {
        jp MoveSprAbs_NCrejoinremove
 
     .MoveSprAbs_NCcliprow1:
-
        ex af,af
 
     .MoveSprAbs_NCcliprow0:
-
        ex (sp),hl
        exx
 
     .MoveSprAbs_NCcliprowlp:
-
        ld d,(hl)
        inc hl
        ld e,(hl)
@@ -2738,7 +2518,6 @@ static void __sp1_asm_engine(void) __naked {
        inc hl
 
     .MoveSprAbs_NCCRrejoinremove:
-
        bit 6,(hl)
        pop hl
        jr nz, MoveSprAbs_NCCRnextrow
@@ -2751,7 +2530,6 @@ static void __sp1_asm_engine(void) __naked {
        jp MoveSprAbs_NCcliprowlp
 
     .MoveSprAbs_NCCRnextrow:
-
        pop hl
 
        ld a,d
@@ -2769,7 +2547,6 @@ static void __sp1_asm_engine(void) __naked {
        jp MoveSprAbs_NCrowloop
 
     .MoveSprAbs_NCCRremoveit:
-
        push de
        ld (hl),0
        inc hl
@@ -2777,7 +2554,7 @@ static void __sp1_asm_engine(void) __naked {
        inc hl
        push hl
        inc hl
-       call __sp1_remove_spr_char
+       call _sp1_remove_spr_char
        pop hl
        pop de
 
@@ -2791,7 +2568,6 @@ static void __sp1_asm_engine(void) __naked {
        ld (bc),a
 
     .MoveSprAbs_NCCRnotoccluding0:
-
        xor $80
        jp p, MoveSprAbs_NCCRrejoinremove
        ld (bc),a
@@ -2810,7 +2586,6 @@ static void __sp1_asm_engine(void) __naked {
        jp MoveSprAbs_NCCRrejoinremove
 
     .MoveSprAbs_done:
-
        exx
        ld de,-6
        add hl,de
@@ -2818,11 +2593,9 @@ static void __sp1_asm_engine(void) __naked {
        ret
 
     .MoveSprAbs_changing0:
-
        ld (ix+0),d
 
     .MoveSprAbs_changing1:
-
        ld (ix+1),e
 
        ld h,(ix+15)
@@ -2834,14 +2607,13 @@ static void __sp1_asm_engine(void) __naked {
        ld bc,6
        add hl,bc
        push hl
-       call asm_sp1_GetUpdateStruct
+       call _sp1_GetUpdateStruct
        ld b,(ix+0)
        pop de
        push hl
        push de
 
     .MoveSprAbs_CCrowloop:
-
        ld a,b
        inc b
 
@@ -2861,11 +2633,9 @@ static void __sp1_asm_engine(void) __naked {
        ex af,af
 
     .MoveSprAbs_CCnotlastrow:
-
        ld c,(ix+1)
 
     .MoveSprAbs_CCcolloop:
-
        ld a,c
        inc c
 
@@ -2889,7 +2659,6 @@ static void __sp1_asm_engine(void) __naked {
        ex af,af
 
     .MoveSprAbs_CCnotlastcol:
-
        exx
        inc (ix+19)
 
@@ -2906,7 +2675,7 @@ static void __sp1_asm_engine(void) __naked {
        push hl
        ld bc,4
        add hl,bc
-       call __sp1_remove_spr_char
+       call _sp1_remove_spr_char
        pop de
        pop hl
        ex (sp),hl
@@ -2932,7 +2701,6 @@ static void __sp1_asm_engine(void) __naked {
        ld (de),a
 
     .MoveSprAbs_CCnotoccl0:
-
        ld a,(de)
        xor $80
        jp p, MoveSprAbs_CCnoinvnew
@@ -2950,7 +2718,6 @@ static void __sp1_asm_engine(void) __naked {
        exx
 
     .MoveSprAbs_CCnoinvnew:
-
        ld a,(bc)
        xor $80
        jp p, MoveSprAbs_CCnoinvold
@@ -2968,7 +2735,6 @@ static void __sp1_asm_engine(void) __naked {
        exx
 
     .MoveSprAbs_CCnoinvold:
-
        dec hl
        ld a,(hl)
        inc hl
@@ -2980,7 +2746,7 @@ static void __sp1_asm_engine(void) __naked {
        ld hl,4
        add hl,de
        push de
-       call __sp1_add_spr_char
+       call _sp1_add_spr_char
        pop hl
        pop af
        pop de
@@ -2997,7 +2763,6 @@ static void __sp1_asm_engine(void) __naked {
        jp MoveSprAbs_CCcolloop
 
     .MoveSprAbs_CCnextrow:
-
        pop hl
 
        ld a,d
@@ -3015,7 +2780,6 @@ static void __sp1_asm_engine(void) __naked {
        jp MoveSprAbs_CCrowloop
 
     .MoveSprAbs_CCnoremovenec0:
-
        pop de
        ld (hl),d
        inc hl
@@ -3030,7 +2794,6 @@ static void __sp1_asm_engine(void) __naked {
        ld (de),a
 
     .MoveSprAbs_CCnotoccl12:
-
        xor $80
        jp p, MoveSprAbs_CCalreadyinv33
        ld (de),a
@@ -3047,17 +2810,14 @@ static void __sp1_asm_engine(void) __naked {
        exx
 
     .MoveSprAbs_CCalreadyinv33:
-
        push bc
 
        jp MoveSprAbs_CCnoinvold
 
     .MoveSprAbs_CCclipcol1:
-
        ex af,af
 
     .MoveSprAbs_CCclipcol0:
-
        exx
 
        ld d,(hl)
@@ -3082,7 +2842,7 @@ static void __sp1_asm_engine(void) __naked {
        inc hl
        push hl
        inc hl
-       call __sp1_remove_spr_char
+       call _sp1_remove_spr_char
        pop hl
        pop de
        pop bc
@@ -3094,7 +2854,6 @@ static void __sp1_asm_engine(void) __naked {
        ld (bc),a
 
     .MoveSprAbs_CCnotoccl44:
-
        xor $80
        jp p, MoveSprAbs_CCalreadyinv66
        ld (bc),a
@@ -3111,7 +2870,6 @@ static void __sp1_asm_engine(void) __naked {
        exx
 
     .MoveSprAbs_CCalreadyinv66:
-
        pop bc
        bit 6,(hl)
        jp nz, MoveSprAbs_CCnextrow
@@ -3126,7 +2884,6 @@ static void __sp1_asm_engine(void) __naked {
        jp MoveSprAbs_CCcolloop
 
     .MoveSprAbs_CCskipremoveit:
-
        inc hl
        inc hl
        inc hl
@@ -3134,16 +2891,13 @@ static void __sp1_asm_engine(void) __naked {
        jp MoveSprAbs_CCalreadyinv66
 
     .MoveSprAbs_CCcliprow1:
-
        ex af,af
 
     .MoveSprAbs_CCcliprow0:
-
        ex (sp),hl
        exx
 
     .MoveSprAbs_CCcliprowlp:
-
        ld d,(hl)
        inc hl
        ld e,(hl)
@@ -3158,7 +2912,6 @@ static void __sp1_asm_engine(void) __naked {
        inc hl
 
     .MoveSprAbs_CCCRrejoinremove:
-
        bit 6,(hl)
        pop hl
        jr nz, MoveSprAbs_CCCRnextrow
@@ -3171,7 +2924,6 @@ static void __sp1_asm_engine(void) __naked {
        jp MoveSprAbs_CCcliprowlp
 
     .MoveSprAbs_CCCRnextrow:
-
        pop hl
 
        ld a,d
@@ -3189,7 +2941,6 @@ static void __sp1_asm_engine(void) __naked {
        jp MoveSprAbs_CCrowloop
 
     .MoveSprAbs_CCCRremoveit:
-
        ld b,a
        inc hl
        ld c,(hl)
@@ -3203,7 +2954,7 @@ static void __sp1_asm_engine(void) __naked {
        inc hl
        push hl
        inc hl
-       call __sp1_remove_spr_char
+       call _sp1_remove_spr_char
        pop hl
        pop de
        pop bc
@@ -3215,7 +2966,6 @@ static void __sp1_asm_engine(void) __naked {
        ld (bc),a
 
     .MoveSprAbs_CCCRnotoccluding0:
-
        xor $80
        jp p, MoveSprAbs_CCCRrejoinremove
        ld (bc),a
@@ -3234,12 +2984,10 @@ static void __sp1_asm_engine(void) __naked {
        jp MoveSprAbs_CCCRrejoinremove
 
     ; =========================================================================
-    ; MODULE: sp1_MoveSprPix
+    ; MODULE: _sp1_MoveSprPix_asm  (z88dk-convention entry: IX=s, IY=clip, HL=frame, DE=x, BC=y)
     ; =========================================================================
-    PUBLIC asm_sp1_MoveSprPix
-
-    asm_sp1_MoveSprPix:
-
+    PUBLIC _sp1_MoveSprPix_asm
+    _sp1_MoveSprPix_asm:
        ld a,e
        and $07
        srl d
@@ -3262,15 +3010,12 @@ static void __sp1_asm_engine(void) __naked {
        ld d,c
        ld c,a
 
-       jp asm_sp1_MoveSprAbs
+       jp sp1_MoveSprAbs
 
     ; =========================================================================
     ; MODULE: sp1_MoveSprRel  (note: original uses bare SECTION, stripped here)
     ; =========================================================================
-    PUBLIC asm_sp1_MoveSprRel
-
-    asm_sp1_MoveSprRel:
-
+    sp1_MoveSprRel:
        ld a,(ix+5)
        add a,b
        ld b,a
@@ -3286,7 +3031,6 @@ static void __sp1_asm_engine(void) __naked {
        add a,8
 
     .mvpos1
-
        and 0x07
        ld b,a
        ld a,(ix+4)
@@ -3305,26 +3049,21 @@ static void __sp1_asm_engine(void) __naked {
        add a,8
 
     .mvpos2
-
        and 0x07
        ld c,a
 
-       jp asm_sp1_MoveSprAbs
+       jp sp1_MoveSprAbs
 
     ; =========================================================================
     ; MODULE: sp1_IterateSprChar
     ; =========================================================================
-    PUBLIC asm_sp1_IterateSprChar
-
-    asm_sp1_IterateSprChar:
-
+    sp1_IterateSprChar:
        ld bc,15
        add hl,bc
 
        ld c,b
 
     .IterateSprChar_iterloop:
-
        ld a,(hl)
        or a
        ret z
@@ -3342,7 +3081,7 @@ static void __sp1_asm_engine(void) __naked {
        ld   l, c
        ld   h, b
 
-       call l_jpix
+       call _sp1_jpix
 
        pop bc
        pop hl
@@ -3355,12 +3094,8 @@ static void __sp1_asm_engine(void) __naked {
     ; =========================================================================
     ; MODULE: sp1_IterateUpdateArr
     ; =========================================================================
-    PUBLIC asm_sp1_IterateUpdateArr
-
-    asm_sp1_IterateUpdateArr:
-
+    sp1_IterateUpdateArr:
     .IterateUpdateArr_loop:
-
        ld e,(hl)
        inc hl
        ld d,(hl)
@@ -3374,7 +3109,7 @@ static void __sp1_asm_engine(void) __naked {
        push hl
        push de
        ex de,hl
-       call l_jpix
+       call _sp1_jpix
        pop de
        pop hl
        pop ix
@@ -3382,12 +3117,47 @@ static void __sp1_asm_engine(void) __naked {
        jp IterateUpdateArr_loop
 
     ; =========================================================================
-    ; MODULE: sp1_TileEntry
+    ; MODULE: _sp1_IterateUpdateRect
     ; =========================================================================
-    PUBLIC asm_sp1_TileEntry
+    _sp1_IterateUpdateRect:
+    ; enter : d = row coord
+    ;         e = col coord
+    ;         b = width
+    ;         c = height
+    ;        ix = void (*hook)(struct sp1_update*)
+    ;   call _sp1_GetUpdateStruct    ; hl = & struct sp1_update
+	;
+    ;.IterateUpdateRect_rowloop
+    ;   push bc
+    ;   push hl                         ; save leftmost col of this row
+	;
+    ;.IterateUpdateRect_colloop
+    ;   push ix
+    ;   push bc
+    ;   push hl
+    ;   call _sp1_jpix                     ; hook(hl=&sp1_update), IX preserved by push/pop
+    ;   pop hl
+    ;   ld bc,10
+    ;   add hl,bc                       ; advance to next col struct
+    ;   pop bc
+    ;   pop ix
+    ;   djnz IterateUpdateRect_colloop
+	;
+    ;   pop hl                          ; hl = leftmost col same row
+    ;   ld bc,10*SP1V_DISPWIDTH
+    ;   add hl,bc                       ; advance to next row
+    ;   pop bc
+	;
+    ;   dec c
+    ;   jp nz, IterateUpdateRect_rowloop
+	;
+    ;   ret
 
-    asm_sp1_TileEntry:
-
+    ; =========================================================================
+    ; MODULE: _sp1_TileEntry_asm  (z88dk-convention entry: C=char, DE=pointer)
+    ; =========================================================================
+    PUBLIC _sp1_TileEntry_asm
+    _sp1_TileEntry_asm:
        ld hl,SP1V_TILEARRAY
        ld b,0
        add hl,bc
@@ -3403,14 +3173,12 @@ static void __sp1_asm_engine(void) __naked {
        ret
 
     ; =========================================================================
-    ; MODULE: sp1_PrintAt
+    ; MODULE: _sp1_PrintAt_asm  (z88dk-convention entry: D=row, E=col, A=colour, BC=tile)
     ; =========================================================================
-    PUBLIC asm_sp1_PrintAt
-
-    asm_sp1_PrintAt:
-
+    PUBLIC _sp1_PrintAt_asm
+    _sp1_PrintAt_asm:
        ex af,af
-       call asm_sp1_GetUpdateStruct
+       call _sp1_GetUpdateStruct
        ex af,af
        inc hl
        ld (hl),a
@@ -3423,13 +3191,10 @@ static void __sp1_asm_engine(void) __naked {
     ; =========================================================================
     ; MODULE: sp1_PutTiles  (note: original has bare SECTION, stripped here)
     ; =========================================================================
-    PUBLIC asm_sp1_PutTiles
-
-    asm_sp1_PutTiles:
-
+    sp1_PutTiles:
        push ix
        push hl
-       call asm_sp1_GetUpdateStruct
+       call _sp1_GetUpdateStruct
        pop de
        inc hl
        ex de,hl
@@ -3438,12 +3203,10 @@ static void __sp1_asm_engine(void) __naked {
        ld c,$ff
 
     .PutTiles_rowloop
-
        push bc
        push de
 
     .PutTiles_colloop
-
        ldi
        ldi
        ldi
@@ -3454,7 +3217,6 @@ static void __sp1_asm_engine(void) __naked {
        inc d
 
     .PutTiles_noinc
-
        djnz PutTiles_colloop
 
        ex (sp),hl
@@ -3474,13 +3236,10 @@ static void __sp1_asm_engine(void) __naked {
     ; =========================================================================
     ; MODULE: sp1_PutTilesInv  (note: original has bare SECTION, stripped here)
     ; =========================================================================
-    PUBLIC asm_sp1_PutTilesInv
-
-    asm_sp1_PutTilesInv:
-
+    sp1_PutTilesInv:
        push ix
        push hl
-       call asm_sp1_GetUpdateStruct
+       call _sp1_GetUpdateStruct
        pop de
        ex de,hl
 
@@ -3490,13 +3249,11 @@ static void __sp1_asm_engine(void) __naked {
        ld ix,(SP1V_UPDATELISTT)
 
     .PutTilesInv_rowloop
-
        push bc
        push de
        ex af,af
 
     .PutTilesInv_colloop
-
        ld a,(de)
        xor $80
        jp p, PutTilesInv_skipinval
@@ -3508,7 +3265,6 @@ static void __sp1_asm_engine(void) __naked {
        pop ix
 
     .PutTilesInv_skipinval
-
        inc de
        ldi
        ldi
@@ -3520,7 +3276,6 @@ static void __sp1_asm_engine(void) __naked {
        inc d
 
     .PutTilesInv_noinc
-
        djnz PutTilesInv_colloop
 
        ex (sp),hl
@@ -3544,10 +3299,7 @@ static void __sp1_asm_engine(void) __naked {
     ; =========================================================================
     ; MODULE: sp1_Initialize
     ; =========================================================================
-    PUBLIC asm_sp1_Initialize
-
-    asm_sp1_Initialize:
-
+    sp1_Initialize:
        push hl
 
        bit 0,a
@@ -3557,20 +3309,17 @@ static void __sp1_asm_engine(void) __naked {
        push af
 
     .rottbllp
-
        ld a,c
        or SP1V_ROTTBL/256
        ld h,a
        ld l,0
 
     .entrylp
-
        ld b,c
        ld e,l
        xor a
 
     .rotlp
-
        srl e
        rra
        djnz rotlp
@@ -3588,14 +3337,12 @@ static void __sp1_asm_engine(void) __naked {
        pop af
 
     .norottbl
-
        ld hl,SP1V_TILEARRAY
        ld de,15360
        ld b,0
        ld c,a
 
     .tileloop
-
        ld a,(hl)
        inc h
        bit 1,c
@@ -3604,14 +3351,12 @@ static void __sp1_asm_engine(void) __naked {
        jr nz, tilepresent
 
     .overwrite
-
        ld (hl),d
        dec h
        ld (hl),e
        inc h
 
     .tilepresent
-
        dec h
        inc hl
 
@@ -3636,11 +3381,9 @@ static void __sp1_asm_engine(void) __naked {
        ex af,af
 
     .Initialize_rowloop
-
        ld c,SP1V_DISPORIGX
 
     .Initialize_colloop
-
        ld (hl),1
        inc hl
        ld (hl),d
@@ -3676,7 +3419,6 @@ static void __sp1_asm_engine(void) __naked {
        ld (hl),a
 
     .Initialize_rejoinscrnaddr
-
        inc hl
        inc c
        ld a,c
@@ -3691,7 +3433,6 @@ static void __sp1_asm_engine(void) __naked {
        ret
 
     .Initialize_skipscrnaddr
-
        ex af,af
        inc hl
        jp Initialize_rejoinscrnaddr
