@@ -1,25 +1,5 @@
 # _fix_sdcc_asm.ps1
 # Post-processes SDCC-generated z80asm .asm files for z88dk-z80asm compatibility.
-#
-# Fixes:
-#  1. SDCC emits XDEF for every referenced symbol AND XREF for externals,
-#     causing z88dk-z80asm to see a conflict (XDEF wins, symbol never defined -> error).
-#     Fix: remove XDEF lines for symbols that also appear as XREF.
-#  2. SDCC still emits '#' as immediate prefix (e.g. ld l, #0x00) even with --asm=z80asm.
-#     Fix: strip '#' before numeric literals.
-#  3. SDCC emits 'sym ~ $FF' for low-byte address extraction — old z80asm syntax.
-#     z88dk-z80asm 20250129 rejects '~' in expressions; replace with '& 0xff'.
-#  4. SDCC omits XREF for implicit runtime helpers (e.g. __moduchar called via 'call').
-#     Fix: scan for call/jp targets not defined locally and not yet in XREF; add XREF.
-#  5. SDCC (z80asm mode) emits 'DEFB $XXYY' (4-digit hex) for 16-bit initializer values
-#     but z88dk-z80asm truncates DEFB to 1 byte, losing the high byte.
-#     Fix: convert 'DEFB $XXYY' to 'DEFB $YY, $XX' (little-endian 2 bytes).
-#  6. SDCC splits initialized statics into '_INITIALIZED' (DEFS = zero placeholder) and
-#     '_INITIALIZER' (__xinit__ DEFB data) areas; without a CRT0 ldir copy the vars are
-#     always zero at runtime (crash: sp1_Invalidate with width=0 loops 256x256 times).
-#     Fix: collect __xinit__ data blocks and inline them at the variable label, replacing
-#     the DEFS placeholder; suppress the now-redundant __xinit__ blocks from output.
-#
 param([string]$file)
 
 $lines = Get-Content $file
@@ -163,11 +143,7 @@ for ($i = 0; $i -lt $lines.Count; $i++) {
 # --- Fix 7: Patch SDCC void-call double-ptr dereference bug ---
 # After a void __naked __sdcccall(1) call, SDCC incorrectly assumes A is preserved
 # and emits 'ld (hl), a' (store) instead of 'ld a, (hl)' (load) as the first step
-# of a double-pointer dereference.  The generated 4-line sequence is:
-#   ld  (hl), a    <- BUG: should be ld a, (hl)
-#   inc hl
-#   ld  h, (hl)
-#   ld  l, a
+# of a double-pointer dereference.
 # The store overwrites the lo-byte of the pointer with garbage from the void call,
 # corrupting the pointer and causing a crash on the subsequent deref.
 # Replace ld (hl),a with ld a,(hl) — turning the incorrect store into the correct load.
