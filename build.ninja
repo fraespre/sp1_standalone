@@ -26,11 +26,6 @@ rule link
   description = link: $out
 
 # Bin2Tap: concatenate HEAP+CRT (adjacent: 0x5B00..0x66B9 + 0x66BA..)
-# into sp1.bin, then produce tape file; delete the two intermediate bins.
-# -a 23296 : load address = 0x5B00 (HEAP binary start)
-# -r 26298 : run address  = 0x66BA (CRT entry point)
-# -c 26297 : clear address  = 0x66B9 (CRT entry point -1)
-# -b       : include BASIC loader
 rule tap
   command = cmd /c "bin2tap $p_tape -o $out $in"
   description = tap: $out
